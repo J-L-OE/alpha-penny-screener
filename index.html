@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ALPHA PENNY // Forensischer Pennystock &amp; Multi-Bagger Screener</title>
+  <meta name="description" content="Professioneller Forensik-Aktienscreener, SEC-Dilution-Detektor, Smart-Money-Radar, CRV-Positionsrechner &amp; Playbook für explosive NASDAQ, NYSE &amp; Europa Pennystocks.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ====================================================================
+       STICKY TERMINAL HEADER
+       ==================================================================== -->
+  <header class="top-header">
+    <div class="header-inner">
+      <div class="brand-group">
+        <div class="brand-logo" aria-hidden="true">αP</div>
+        <div>
+          <h1 class="brand-title">
+            ALPHA PENNY
+            <span class="live-badge">
+              <span class="live-dot" aria-hidden="true"></span>
+              <span id="live-status-text">LIVE DATENSATZ</span>
+            </span>
+          </h1>
+          <p class="brand-subtitle">Forensischer Micro-Cap &amp; Multi-Bagger Screener • NASDAQ / NYSE / XETRA • SEC EDGAR &amp; Finviz Intelligence</p>
+        </div>
+      </div>
+
+      <nav class="main-nav" aria-label="Hauptnavigation">
+        <button type="button" class="nav-tab" data-view="view-screener" aria-selected="true">
+          <span>1. Screener &amp; Setups</span>
+          <span class="nav-count" id="nav-count-screener">0</span>
+        </button>
+        <button type="button" class="nav-tab" data-view="view-sec-radar" aria-selected="false">
+          <span>2. SEC &amp; Smart-Money Radar</span>
+          <span class="nav-count" id="nav-count-sec">108</span>
+        </button>
+        <button type="button" class="nav-tab" data-view="view-dd-lab" aria-selected="false">
+          <span>3. Due-Diligence-Prüfstand</span>
+        </button>
+        <button type="button" class="nav-tab" data-view="view-execution" aria-selected="false">
+          <span>4. CRV &amp; Positions-Rechner</span>
+        </button>
+        <button type="button" class="nav-tab" data-view="view-playbook" aria-selected="false">
+          <span>5. Komplettes Playbook (Alle Infos)</span>
+        </button>
+      </nav>
+
+      <div class="header-actions">
+        <button type="button" class="btn btn-primary" id="btn-live-refresh" title="Holt aktuelle Echtzeit-Kurse, RVOL, Cash-Metriken &amp; Indikatoren live von der Scanner-API">
+          <span id="refresh-icon" aria-hidden="true">⟳</span>
+          <span id="refresh-label">Live-Kurse aktualisieren</span>
+        </button>
+        <button type="button" class="btn" id="btn-export-csv" title="Aktuelle Screener-Auswahl als CSV exportieren">
+          ⬇ CSV
+        </button>
+        <button type="button" class="btn" id="btn-theme-toggle" aria-label="Farbschema umschalten">
+          ☀/☾
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ====================================================================
+       TOP KPI SUMMARY STRIP (Click any card to filter immediately)
+       ==================================================================== -->
+  <section class="kpi-strip" aria-label="Marktübersicht und Schnellfilter">
+    <div class="kpi-card" data-quick-preset="SAFE_STANDARD" role="button" tabindex="0">
+      <div class="kpi-label">
+        <span>Safe Standard (0,80–5$)</span>
+        <span class="badge badge-green">Basis-Filter</span>
+      </div>
+      <div class="kpi-value" id="kpi-safe-count">—</div>
+      <div class="kpi-sub">NASDAQ/NYSE • MCap 30–300M • Vol &gt; 300k</div>
+    </div>
+
+    <div class="kpi-card" data-quick-preset="UNUSUAL_RVOL" role="button" tabindex="0">
+      <div class="kpi-label">
+        <span>RVOL Breakout (&gt; 2.0x)</span>
+        <span class="badge badge-cyan">Momentum</span>
+      </div>
+      <div class="kpi-value" id="kpi-rvol-count">—</div>
+      <div class="kpi-sub">Frisches Volumen + Low-Float / News</div>
+    </div>
+
+    <div class="kpi-card" data-quick-preset="REVENUE_ACCEL" role="button" tabindex="0">
+      <div class="kpi-label">
+        <span>Umsatz-Scaler (Q/Q &gt; 30%)</span>
+        <span class="badge badge-blue">Wachstum</span>
+      </div>
+      <div class="kpi-value" id="kpi-rev-count">—</div>
+      <div class="kpi-sub">Sales &amp; EPS Beschleunigung • Debt/Eq &lt; 1</div>
+    </div>
+
+    <div class="kpi-card" data-quick-preset="TURNAROUND" role="button" tabindex="0">
+      <div class="kpi-label">
+        <span>Turnaround / Break-Even</span>
+        <span class="badge badge-purple">Muster A</span>
+      </div>
+      <div class="kpi-value" id="kpi-turnaround-count">—</div>
+      <div class="kpi-sub">Positives EBITDA / Oper. Cashflow</div>
+    </div>
+
+    <div class="kpi-card" data-quick-preset="SMART_MONEY" role="button" tabindex="0">
+      <div class="kpi-label">
+        <span>Smart Money (13D/G &amp; Insider)</span>
+        <span class="badge badge-amber">SEC Radar</span>
+      </div>
+      <div class="kpi-value" id="kpi-smart-count">—</div>
+      <div class="kpi-sub">SEC 13D/13G (&gt;5%) &amp; Form 4 Käufe</div>
+    </div>
+
+    <div class="kpi-card" data-quick-preset="DILUTION_TRAP" role="button" tabindex="0">
+      <div class="kpi-label">
+        <span>Erkannte Dilution-Fallen</span>
+        <span class="badge badge-red">Red Flags</span>
+      </div>
+      <div class="kpi-value" id="kpi-trap-count">—</div>
+      <div class="kpi-sub">Cash &lt; 9M oder aktives 424B5 / ATM</div>
+    </div>
+  </section>
+
+  <!-- ====================================================================
+       MAIN SPA VIEWS HOST
+       ==================================================================== -->
+  <main class="views-host">
+
+    <!-- ==================================================================
+         VIEW 1: FORENSIC SCREENER & MULTI-BAGGER SETUPS
+         ================================================================== -->
+    <section id="view-screener" class="spa-view" tabindex="-1" aria-label="Forensischer Pennystock Screener">
+
+      <!-- One-Click Strategy Presets -->
+      <div class="preset-bar">
+        <div class="preset-header">
+          <h2 class="preset-title">Strategie-Setups &amp; Explosive Multi-Bagger Kernmuster (1-Klick-Filter)</h2>
+          <span class="mono" style="font-size:0.74rem;color:var(--text-muted);" id="dataset-timestamp">Stand: Live geladen</span>
+        </div>
+
+        <div class="preset-pills" id="preset-pills-container">
+          <button type="button" class="preset-pill active" data-preset="ALL">Alle Micro-Caps</button>
+          <button type="button" class="preset-pill" data-preset="SAFE_STANDARD">★ 1. Basis-Qualität (Safe Standard)</button>
+          <button type="button" class="preset-pill" data-preset="REVENUE_ACCEL">🚀 Setup: Umsatz-Beschleunigung</button>
+          <button type="button" class="preset-pill" data-preset="ACCUMULATION">📈 Setup: Bodenbildung &amp; Akkumulation</button>
+          <button type="button" class="preset-pill" data-preset="UNUSUAL_RVOL">⚡ Setup: Ungewöhnliches Volumen (RVOL)</button>
+          <button type="button" class="preset-pill" data-preset="TURNAROUND">🔄 Muster A: Turnaround / Break-Even</button>
+          <button type="button" class="preset-pill" data-preset="BINARY_CATALYST">🧬 Muster B: Binäre Katalysatoren (Biotech/Mining)</button>
+          <button type="button" class="preset-pill" data-preset="PURE_PLAY">🔥 Muster C: Pure-Play Hype-Sektor</button>
+          <button type="button" class="preset-pill" data-preset="SHORT_SQUEEZE">💥 Muster D: Short Squeeze &amp; Low Float</button>
+          <button type="button" class="preset-pill" data-preset="SMART_MONEY">🐋 Smart Money (SEC 13D/13G &amp; Insider)</button>
+          <button type="button" class="preset-pill" data-preset="DILUTION_TRAP">⚠️ Dilution-Fallen (Warn-Scanner)</button>
+          <button type="button" class="preset-pill" data-preset="WATCHLIST">⭐ Merkliste (<span id="watchlist-count">0</span>)</button>
+        </div>
+
+        <div class="preset-banner" id="preset-description-banner">
+          <div>
+            <strong id="preset-banner-title">Gesamtes Micro-Cap Universum (NASDAQ, NYSE &amp; Europa):</strong>
+            <span id="preset-banner-text">Zeigt alle überwachten Pennystocks inkl. 4-Säulen-Forensik-Score, Cash Runway in Monaten, SEC EDGAR Filings (S-3, 424B5, 13D/13G) und technischer Struktur.</span>
+          </div>
+          <button type="button" class="btn btn-sm" id="btn-reset-filters">Filter zurücksetzen</button>
+        </div>
+      </div>
+
+      <!-- Precision Filter Matrix -->
+      <div class="filter-panel">
+        <div class="filter-grid">
+          <div class="filter-group">
+            <label for="f-search">Ticker / Firma / Branche</label>
+            <input type="search" id="f-search" class="filter-input" placeholder="z.B. TONX, Biotech, Drone, AI...">
+          </div>
+
+          <div class="filter-group">
+            <label for="f-region">Börsenplatz / Region</label>
+            <select id="f-region" class="filter-select">
+              <option value="ALL">Alle (NASDAQ, NYSE &amp; Europa)</option>
+              <option value="US">Nur US: NASDAQ &amp; NYSE (Kein OTC!)</option>
+              <option value="NASDAQ">Nur NASDAQ</option>
+              <option value="NYSE">Nur NYSE</option>
+              <option value="EU">Nur Europa: XETRA / Tradegate (&lt; 1,50 €)</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="f-price-min">Kursspanne ($ / €)</label>
+            <div class="filter-row-inline">
+              <input type="number" id="f-price-min" class="filter-input mono" step="0.1" min="0" placeholder="Min (0.80)">
+              <span>–</span>
+              <input type="number" id="f-price-max" class="filter-input mono" step="0.25" min="0" placeholder="Max (5.00)">
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <label for="f-mcap-min">Market Cap (Mio. $/€)</label>
+            <div class="filter-row-inline">
+              <input type="number" id="f-mcap-min" class="filter-input mono" step="5" min="0" placeholder="Min (30)">
+              <span>–</span>
+              <input type="number" id="f-mcap-max" class="filter-input mono" step="10" min="0" placeholder="Max (300)">
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <label for="f-vol-min">Ø Handelsvolumen (3M)</label>
+            <select id="f-vol-min" class="filter-select">
+              <option value="0">Alle (&gt; 25.000)</option>
+              <option value="150000">&gt; 150.000 Aktien</option>
+              <option value="300000">&gt; 300.000 (Empfohlen)</option>
+              <option value="500000">&gt; 500.000 (Hohe Liquidität)</option>
+              <option value="1000000">&gt; 1.000.000 Aktien</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="f-rvol-min">Relative Volume (RVOL)</label>
+            <select id="f-rvol-min" class="filter-select">
+              <option value="0">Alle RVOL-Werte</option>
+              <option value="1.2">RVOL &gt; 1.2x (Belebt)</option>
+              <option value="1.5">RVOL &gt; 1.5x (Auffällig)</option>
+              <option value="2.0">RVOL &gt; 2.0x (Momentum-Standard)</option>
+              <option value="2.5">RVOL &gt; 2.5x (Ausbruchs-Setup)</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="f-runway-min">Cash Runway (Säule A)</label>
+            <select id="f-runway-min" class="filter-select">
+              <option value="0">Alle Cash-Runways</option>
+              <option value="9">≥ 9 Monate (Kein Akut-Notstand)</option>
+              <option value="12">≥ 12 Monate (Sicherer Puffer)</option>
+              <option value="18">≥ 18 Monate (Starke Bilanz)</option>
+              <option value="999">Nur Cashflow-Positiv (Kein Burn!)</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="f-float-max">Streubesitz / Float (Säule B)</label>
+            <select id="f-float-max" class="filter-select">
+              <option value="9999">Alle Float-Größen</option>
+              <option value="10">&lt; 10 Mio. Aktien (Ultra-Low-Float)</option>
+              <option value="15">&lt; 15 Mio. Aktien (Low-Float)</option>
+              <option value="20">&lt; 20 Mio. Aktien (Empfohlen)</option>
+              <option value="50">&lt; 50 Mio. Aktien</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="f-insider-min">Insider-Ownership (Säule B)</label>
+            <select id="f-insider-min" class="filter-select">
+              <option value="0">Alle Insider-Quoten</option>
+              <option value="5">&gt; 5 % Insider-Anteil</option>
+              <option value="10">&gt; 10 % (Hohes Skin-in-the-Game)</option>
+              <option value="15">&gt; 15 % (Top-Eigentümerstruktur)</option>
+              <option value="25">&gt; 25 % Insider-Anteil</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="f-short-min">Short Interest % Float</label>
+            <select id="f-short-min" class="filter-select">
+              <option value="0">Alle Short-Quoten</option>
+              <option value="8">&gt; 8 % Short Float</option>
+              <option value="12">&gt; 12 % Short Float</option>
+              <option value="15">&gt; 15 % (Short-Squeeze-Zone)</option>
+              <option value="20">&gt; 20 % (Extremer Squeeze-Druck)</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="f-theme">Sektor / Pure-Play Thema</label>
+            <select id="f-theme" class="filter-select">
+              <option value="ALL">Alle Sektoren &amp; Themen</option>
+              <option value="Biotech & Pharma (PDUFA / Klinisch)">🧬 Biotech &amp; Pharma (PDUFA / Klinisch)</option>
+              <option value="KI-Infrastruktur, Tech & Cloud">🤖 KI-Infrastruktur, Tech &amp; Cloud</option>
+              <option value="Verteidigung, Drohnen & Aerospace">🛡️ Verteidigung, Drohnen &amp; Aerospace</option>
+              <option value="Energie, Batterien & Power-Grid">⚡ Energie, Batterien &amp; Power-Grid</option>
+              <option value="Rohstoffe, Lithium & Mining">⛏️ Rohstoffe, Lithium &amp; Mining</option>
+              <option value="FinTech, Krypto & Finanzwerte">💳 FinTech, Krypto &amp; Finanzwerte</option>
+              <option value="Industrie, Konsum & Spezialwerte">🏭 Industrie, Konsum &amp; Spezialwerte</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="f-score-min">Forensik-Score Min: <span id="f-score-val" class="mono">0</span>/100</label>
+            <input type="range" id="f-score-min" min="0" max="85" step="5" value="0" style="accent-color:var(--accent-primary);">
+          </div>
+        </div>
+
+        <div class="filter-toggles">
+          <div class="checkbox-group">
+            <label class="check-label">
+              <input type="checkbox" id="chk-above-1usd">
+              <span>Nur Kurs ≥ 1,00 $ (Kein NASDAQ Delisting-Verfahren)</span>
+            </label>
+            <label class="check-label">
+              <input type="checkbox" id="chk-no-atm">
+              <span>Keine aktiven 424B5 / ATM-Verwässerungsprogramme</span>
+            </label>
+            <label class="check-label">
+              <input type="checkbox" id="chk-above-sma">
+              <span>Technik: Kurs über SMA 50 &amp; SMA 200</span>
+            </label>
+            <label class="check-label">
+              <input type="checkbox" id="chk-smart-money">
+              <span>Smart Money: SEC 13D/13G oder Insider-Käufe</span>
+            </label>
+            <label class="check-label">
+              <input type="checkbox" id="chk-positive-cf">
+              <span>Positives EBITDA / Operativer Cashflow</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table Toolbar -->
+      <div class="table-toolbar">
+        <div class="results-summary" id="results-summary-text">
+          Lade Forensik-Datenbank...
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+          <label for="f-limit" style="font-size:0.76rem;color:var(--text-secondary);">Anzeige:</label>
+          <select id="f-limit" class="filter-select" style="inline-size:auto;padding:0.28rem 0.55rem;">
+            <option value="50">Top 50 Aktien</option>
+            <option value="100" selected>Top 100 Aktien</option>
+            <option value="250">Top 250 Aktien</option>
+            <option value="999">Alle anzeigen</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Responsive Sticky Data Table (modern-web-guidance: responsive-table) -->
+      <div tabindex="0" role="region" aria-labelledby="screener-table-caption" class="table-wrapper">
+        <table class="screener-table">
+          <caption id="screener-table-caption">Forensisch gefilterte Pennystocks und Micro-Cap-Aktien mit Due-Diligence-Bewertung</caption>
+          <thead>
+            <tr>
+              <th scope="col" data-sort="ticker">Ticker / Firma ↕</th>
+              <th scope="col" data-sort="score" title="4-Säulen Forensik-Score (0–100): Cash/Dilution (30) + Float/Insider (25) + Katalysator/Wachstum (25) + Technik (20)">Forensik-Score ↕</th>
+              <th scope="col" data-sort="price">Kurs &amp; Tag % ↕</th>
+              <th scope="col" data-sort="rvol" title="Relative Volume (RVOL) &amp; 3-Monats-Durchschnittsvolumen">RVOL / Ø Vol (3M) ↕</th>
+              <th scope="col" data-sort="marketCapM">MCap &amp; Float ↕</th>
+              <th scope="col" data-sort="cashRunwayMonths" title="Barmittel geteilt durch quartalsweisen operativen Cash-Burn (unter 9–12 Monaten droht Notkapitalerhöhung)">Cash Runway ↕</th>
+              <th scope="col" data-sort="dilutionYoY" title="Jährliche Veränderung der ausstehenden Aktien + echte SEC EDGAR Filings (S-3, 424B5, 13D/13G)">Dilution &amp; SEC ↕</th>
+              <th scope="col" data-sort="insiderOwn" title="Insider-Ownership %, Insider-Transaktionen &amp; Short Interest % des Floats">Insider &amp; Short % ↕</th>
+              <th scope="col" data-sort="revGrowthQoQ" title="Umsatzwachstum Q/Q bzw. YoY, Quartals-EBITDA &amp; Verschuldungsgrad (Debt/Equity)">Wachstum &amp; Bilanz ↕</th>
+              <th scope="col" data-sort="rsi" title="Kursposition relativ zu SMA 50, SMA 200, VWAP &amp; RSI (14)">Technik (SMA/VWAP) ↕</th>
+              <th scope="col">Multi-Bagger Setups &amp; Analyse</th>
+            </tr>
+          </thead>
+          <tbody id="screener-tbody">
+            <!-- Dynamically populated by app.js -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ==================================================================
+         VIEW 2: SEC EDGAR FILINGS & SMART-MONEY RADAR
+         ================================================================== -->
+    <section id="view-sec-radar" class="spa-view inactive" tabindex="-1" aria-hidden="true" aria-label="SEC EDGAR und Smart-Money Radar">
+      <div class="preset-bar">
+        <h2 style="margin:0 0 0.35rem;font-size:1.1rem;">Institutionelles Tracking ("Smart Money") &amp; SEC EDGAR Forensik-Radar</h2>
+        <p style="margin:0;font-size:0.82rem;color:var(--text-secondary);">
+          Große Gewinne entstehen, wenn institutionelle Fonds und Insider über Wochen Positionen aufbauen – während Kapitalvernichter durch aktive <strong>Form S-3 / 424B5 (ATM-Offerings)</strong> jeden Kurssprung abverkaufen. Alle untenstehenden Signale stammen aus echten SEC EDGAR Einreichungen &amp; Ownership-Daten.
+        </p>
+      </div>
+
+      <!-- Direct External Screener Deep-Links -->
+      <div class="panel-card" style="margin-block-end:1rem;">
+        <h3>
+          <span>🔗 Direkt-Launchpad zu externen Profi-Screenern &amp; SEC-Datenbanken (Vorkonfigurierte Filter-URLs)</span>
+          <span class="badge badge-blue">One-Click Deep-Links</span>
+        </h3>
+        <div style="display:flex;flex-wrap:wrap;gap:0.55rem;">
+          <a href="https://finviz.com/screener.ashx?v=152&amp;f=cap_0.03to0.3,exch_nasd,sh_avgvol_o300,sh_price_1to5" target="_blank" rel="noopener" class="btn">
+            ↗ Finviz: Safe Standard (NASDAQ 1–5$, MCap 30–300M, Vol &gt;300k)
+          </a>
+          <a href="https://finviz.com/screener.ashx?v=141&amp;f=cap_micro,exch_nasd,sh_avgvol_o300,sh_curvol_o500,sh_price_u5,sh_relvol_o2" target="_blank" rel="noopener" class="btn">
+            ↗ Finviz: RVOL &gt; 2.0 Momentum-Ausbruch
+          </a>
+          <a href="https://finviz.com/screener.ashx?v=131&amp;f=cap_micro,exch_nasd,sh_float_u20,sh_price_u5,sh_short_o15" target="_blank" rel="noopener" class="btn">
+            ↗ Finviz: Low-Float (&lt;20M) + High Short (&gt;15%) Squeeze
+          </a>
+          <a href="http://openinsider.com/screener?s=&amp;o=&amp;pl=0.8&amp;ph=5&amp;ll=&amp;lh=&amp;fd=90&amp;fdr=&amp;td=0&amp;tdr=&amp;fdlyl=&amp;fdlyh=&amp;daysago=&amp;xp=1&amp;vl=100&amp;vh=&amp;ocl=&amp;och=&amp;sic1=-1&amp;sicl=100&amp;sich=9999&amp;grp=0&amp;nfl=&amp;nfh=&amp;nil=&amp;nih=&amp;nol=&amp;noh=&amp;v2l=&amp;v2h=&amp;oc2l=&amp;oc2h=&amp;sortcol=0&amp;cnt=100&amp;page=1" target="_blank" rel="noopener" class="btn">
+            ↗ OpenInsider: Micro-Cap Insider-Käufe &gt; 100.000 $ (Form 4)
+          </a>
+          <a href="https://www.sec.gov/edgar/searchedgar/companysearch" target="_blank" rel="noopener" class="btn">
+            ↗ SEC EDGAR: Offizielle Filing-Suche (S-3 / 424B5 / 13D)
+          </a>
+          <a href="https://www.biopharmcatalyst.com/calendars/fda-calendar" target="_blank" rel="noopener" class="btn">
+            ↗ BioPharmCatalyst: FDA PDUFA &amp; Phase-2/3 Kalender
+          </a>
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <!-- Column 1: SEC 13D / 13G Smart Money -->
+        <div class="panel-card containment-region">
+          <h3>
+            <span>🐋 SEC Form 13D / 13G Großinvestoren (&gt;5 %)</span>
+            <span class="badge badge-green">Smart Money</span>
+          </h3>
+          <p style="font-size:0.77rem;color:var(--text-secondary);margin-block:0 0.75rem;">
+            Zeigt Pennystocks, bei denen institutionelle Investoren oder Hedgefonds über 5 % der Unternehmensanteile per <strong>SC 13D / 13G</strong> bei der SEC gemeldet haben.
+          </p>
+          <div id="sec-13dg-list" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+        </div>
+
+        <!-- Column 2: Form 4 Insider Buying & High Skin in the Game -->
+        <div class="panel-card containment-region">
+          <h3>
+            <span>👔 Form 4 Insider-Käufe &amp; High Insider-Own</span>
+            <span class="badge badge-amber">Skin in the Game</span>
+          </h3>
+          <p style="font-size:0.77rem;color:var(--text-secondary);margin-block:0 0.75rem;">
+            Vorstände und Gründer mit hoher Eigenbeteiligung (&gt;15 %) sowie positiven <strong>Form 4</strong> Insider-Transaktionen am offenen Markt.
+          </p>
+          <div id="sec-insider-list" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+        </div>
+
+        <!-- Column 3: Active S-3 / 424B5 ATM Dilution Traps -->
+        <div class="panel-card containment-region">
+          <h3>
+            <span>🚨 Toxische Verwässerung: Form 424B5 / S-3 &amp; Cash-Not</span>
+            <span class="badge badge-red">Dilution Warnung</span>
+          </h3>
+          <p style="font-size:0.77rem;color:var(--text-secondary);margin-block:0 0.75rem;">
+            Unternehmen mit aktivem Prospekt (<strong>424B5 / S-3 Shelf</strong>) und/oder kritischem Cash-Runway (&lt;12 Monate) – hohe Gefahr von Abverkäufen in jeden Kurssprung!
+          </p>
+          <div id="sec-dilution-list" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================================================================
+         VIEW 3: 4-PILLAR DUE DILIGENCE LAB & FORENSIC CALCULATOR
+         ================================================================== -->
+    <section id="view-dd-lab" class="spa-view inactive" tabindex="-1" aria-hidden="true" aria-label="4-Säulen Due-Diligence-Prüfstand">
+      <div class="preset-bar" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1rem;">
+        <div>
+          <h2 style="margin:0 0 0.25rem;font-size:1.1rem;">Forensischer 4-Säulen Due-Diligence-Prüfstand (Bilanz- &amp; Verwässerungs-Labor)</h2>
+          <p style="margin:0;font-size:0.82rem;color:var(--text-secondary);">
+            Lade einen beliebigen Wert aus dem Screener oder gib eigene Bilanzdaten aus dem 10-Q/10-K ein, um Cash Runway, Verwässerung und Pump-&amp;-Dump-Risiken forensisch zu prüfen.
+          </p>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+          <label for="dd-ticker-select" style="font-size:0.8rem;font-weight:600;">Aktie aus Datenbank laden:</label>
+          <select id="dd-ticker-select" class="filter-select" style="min-inline-size:230px;"></select>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <!-- Left: Interactive Forensic Inputs -->
+        <div class="panel-card">
+          <h3>
+            <span>🔍 Forensische Kennzahlen-Eingabe (Säulen A – D)</span>
+            <span class="badge badge-blue" id="dd-current-ticker-badge">Manuell / Live</span>
+          </h3>
+
+          <div class="filter-grid" style="grid-template-columns:repeat(auto-fit,minmax(210px,1fr));">
+            <div class="filter-group">
+              <label for="dd-cash">Barmittel / Cash &amp; Equivalents (Mio. $)</label>
+              <input type="number" id="dd-cash" class="filter-input mono" step="0.5" value="45.0">
+            </div>
+            <div class="filter-group">
+              <label for="dd-burn">Quartalsweiser Oper. Cashflow / Burn (Mio. $)</label>
+              <input type="number" id="dd-burn" class="filter-input mono" step="0.5" value="-6.5" title="Negativer Wert = Cash-Burn pro Quartal; Positiver Wert = Cashflow-positiv">
+            </div>
+            <div class="filter-group">
+              <label for="dd-shares-prev">Aktienanzahl vor 1–2 Jahren (Mio.)</label>
+              <input type="number" id="dd-shares-prev" class="filter-input mono" step="0.5" value="28.0">
+            </div>
+            <div class="filter-group">
+              <label for="dd-shares-now">Aktienanzahl heute (Shares Out Mio.)</label>
+              <input type="number" id="dd-shares-now" class="filter-input mono" step="0.5" value="30.5">
+            </div>
+            <div class="filter-group">
+              <label for="dd-float">Frei handelbarer Float (Mio. Aktien)</label>
+              <input type="number" id="dd-float" class="filter-input mono" step="0.5" value="14.2">
+            </div>
+            <div class="filter-group">
+              <label for="dd-insider">Insider-Ownership (%)</label>
+              <input type="number" id="dd-insider" class="filter-input mono" step="0.5" value="16.5">
+            </div>
+            <div class="filter-group">
+              <label for="dd-short">Short Interest (% vom Float)</label>
+              <input type="number" id="dd-short" class="filter-input mono" step="0.5" value="14.0">
+            </div>
+            <div class="filter-group">
+              <label for="dd-debt-eq">Debt / Equity Ratio</label>
+              <input type="number" id="dd-debt-eq" class="filter-input mono" step="0.1" value="0.35">
+            </div>
+            <div class="filter-group">
+              <label for="dd-filing-status">SEC EDGAR Shelf / ATM Status</label>
+              <select id="dd-filing-status" class="filter-select">
+                <option value="clean">Keine aktiven S-3 / 424B5 ATM-Programme</option>
+                <option value="s3">Offene S-3 Shelf Registration (Inaktiv)</option>
+                <option value="atm">Aktives 424B5 ATM-Offering / Wandelanleihen (Toxisch!)</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="dd-catalyst-type">Primärer Katalysator (Säule C)</label>
+              <select id="dd-catalyst-type" class="filter-select">
+                <option value="turnaround">Break-Even / Positives EBITDA / Großauftrag</option>
+                <option value="pdufa">Verifizierter FDA PDUFA-Termin / Feasibility Study</option>
+                <option value="pureplay">Echte Verträge/Patente in Hype-Sektor + 13D/13G</option>
+                <option value="pr_only">Nur vage Pressemitteilungen / Werbe-Newsletter (Red Flag!)</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="dd-tech-status">Technische Struktur (Säule D)</label>
+              <select id="dd-tech-status" class="filter-select">
+                <option value="strong">Kurs &gt; SMA 50, SMA 200 &amp; VWAP + steigendes OBV</option>
+                <option value="base">Bodenbildung / Enge Range (3–6M Akkumulation)</option>
+                <option value="downtrend">Unter SMA 50 &amp; 200 (Dead-Cat-Bounce im Abwärtstrend)</option>
+              </select>
+            </div>
+          </div>
+
+          <h4 style="margin:1.1rem 0 0.5rem;font-size:0.86rem;">Manuelle Forensik-Checkliste (Anti-Pump-&amp;-Dump):</h4>
+          <div id="dd-checklist-container">
+            <label class="checklist-item">
+              <input type="checkbox" class="dd-chk" checked>
+              <span><strong>Börsenplatz-Compliance:</strong> Gelistet an NASDAQ / NYSE oder XETRA (kein unregulierter OTC-Freiverkehr, Kurs &gt; 0,80 $ bzw. kein akutes Delisting).</span>
+            </label>
+            <label class="checklist-item">
+              <input type="checkbox" class="dd-chk" checked>
+              <span><strong>Keine bezahlten Push-Kampagnen:</strong> Keine aggressiven E-Mail-Newsletter ("Next 1000% Stock") oder dubiose Reverse-Merger-Briefkastenfirmen.</span>
+            </label>
+            <label class="checklist-item">
+              <input type="checkbox" class="dd-chk" checked>
+              <span><strong>Volumen-Verifikation:</strong> 3-Monats-Durchschnittsvolumen &gt; 300.000 Aktien (enger Bid-Ask-Spread statt 15 % Illiquiditätsfalle).</span>
+            </label>
+            <label class="checklist-item">
+              <input type="checkbox" class="dd-chk" checked>
+              <span><strong>Point of Control (Volume Profile):</strong> Substanzielles Handelsvolumen auf aktuellem Preisniveau statt dünner Mini-Umsätze.</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Right: Live Calculated Forensic Verdict -->
+        <div class="panel-card" id="dd-verdict-panel">
+          <!-- Populated dynamically by app.js -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================================================================
+         VIEW 4: ASYMMETRIC EXECUTION, POSITION SIZING & CRV CALCULATOR
+         ================================================================== -->
+    <section id="view-execution" class="spa-view inactive" tabindex="-1" aria-hidden="true" aria-label="Asymmetrisches Execution- und CRV-Risiko-Desk">
+      <div class="preset-bar" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1rem;">
+        <div>
+          <h2 style="margin:0 0 0.25rem;font-size:1.1rem;">Execution &amp; Asymmetrisches Trade-Management (Limit-Order, CRV ≥ 3:1 &amp; Free-Ride-Planer)</h2>
+          <p style="margin:0;font-size:0.82rem;color:var(--text-secondary);">
+            Berechnet exakte Positionsgröße (max. 1–3 % Portfolio-Exposure), prüft das Chance-Risiko-Verhältnis (mindestens 3:1 bis 4:1) und plant den Teilverkauf (30–50 % bei +50 % bis +100 % Gewinn) für risikofreie Multi-Bagger-Runner.
+          </p>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+          <label for="exec-ticker-select" style="font-size:0.8rem;font-weight:600;">Setup mit Aktie füllen:</label>
+          <select id="exec-ticker-select" class="filter-select" style="min-inline-size:230px;"></select>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <!-- Left: Trade & Risk Inputs -->
+        <div class="panel-card">
+          <h3>
+            <span>🎯 Limit-Order &amp; Positions-Sizing Parameter</span>
+            <span class="badge badge-green">NIEMALS Market-Orders!</span>
+          </h3>
+
+          <div class="filter-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
+            <div class="filter-group">
+              <label for="ex-portfolio">Gesamtportfolio-Wert ($ / €)</label>
+              <input type="number" id="ex-portfolio" class="filter-input mono" step="1000" value="50000">
+            </div>
+            <div class="filter-group">
+              <label for="ex-max-alloc">Max. Positionsgröße (% vom Depot)</label>
+              <select id="ex-max-alloc" class="filter-select">
+                <option value="1.0">1,0 % (Konservativ – Empfohlen)</option>
+                <option value="2.0" selected>2,0 % (Standard Micro-Cap Exposure)</option>
+                <option value="3.0">3,0 % (Striktes Maximum laut Regelwerk!)</option>
+                <option value="5.0">5,0 % (Überhöhtes Klumpenrisiko!)</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="ex-max-risk">Max. Verlustrisiko pro Trade (% Depot)</label>
+              <select id="ex-max-risk" class="filter-select">
+                <option value="0.25">0,25 % vom Gesamtportfolio</option>
+                <option value="0.50" selected>0,50 % vom Gesamtportfolio</option>
+                <option value="0.75">0,75 % vom Gesamtportfolio</option>
+                <option value="1.00">1,00 % vom Gesamtportfolio</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="ex-entry">Limit-Einstiegskurs ($ / €)</label>
+              <input type="number" id="ex-entry" class="filter-input mono" step="0.01" value="2.10">
+            </div>
+            <div class="filter-group">
+              <label for="ex-stop">Hard Stop-Loss ($ / €) <span style="color:var(--accent-red);">Kein Nachkaufen!</span></label>
+              <input type="number" id="ex-stop" class="filter-input mono" step="0.01" value="1.80">
+            </div>
+            <div class="filter-group">
+              <label for="ex-target1">Kursziel 1: Teilverkauf / De-Risk ($ / €)</label>
+              <input type="number" id="ex-target1" class="filter-input mono" step="0.05" value="3.35">
+            </div>
+            <div class="filter-group">
+              <label for="ex-target2">Kursziel 2: Multi-Bagger Runner ($ / €)</label>
+              <input type="number" id="ex-target2" class="filter-input mono" step="0.10" value="5.25">
+            </div>
+            <div class="filter-group">
+              <label for="ex-partial-pct">Teilverkauf bei Ziel 1 (% der Position)</label>
+              <select id="ex-partial-pct" class="filter-select">
+                <option value="30">30 % verkaufen (70 % Runner)</option>
+                <option value="40">40 % verkaufen (60 % Runner)</option>
+                <option value="50" selected>50 % verkaufen (Halbe Position risikofrei)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="preset-banner" style="margin-block-start:1rem;border-inline-start-color:var(--accent-amber);">
+            <div>
+              <strong>Goldene Execution-Regeln:</strong>
+              1) Ausschließlich <strong>Limit-Orders</strong> (verhindert 10–20 % Slippage im Spread).
+              2) Bei binären Events (FDA PDUFA / Konferenz) Verkauf in den <strong>"Run-up" vor dem Termin</strong> ("Buy the rumor, sell the news").
+              3) Bricht der Stop-Loss bzw. die Kernhypothese: <strong>Sofortige Liquidation – niemals verbilligt nachkaufen!</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Live Execution & Asymmetric Exit Plan Output -->
+        <div class="panel-card" id="exec-output-panel">
+          <!-- Populated dynamically by app.js -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================================================================
+         VIEW 5: COMPLETE PLAYBOOK & ALL CHAT TRANSCRIPT KNOWLEDGE
+         ================================================================== -->
+    <section id="view-playbook" class="spa-view inactive" tabindex="-1" aria-hidden="true" aria-label="Komplettes Pennystock Playbook und Wissensdatenbank">
+
+      <div class="playbook-section">
+        <h2>Teil 1: Wie du erstklassige Pennystocks findest &amp; ihre Qualität forensisch bewertest</h2>
+        <p>
+          Um im Micro-Cap- und Pennystock-Segment (<strong>US-Definition meist Kurs unter 5 USD, Europa unter 1 EUR</strong>) aussichtsreiche Werte zu finden, reicht reines Hoffen auf den nächsten Hype nicht aus. <strong>Über 95 % aller Pennystocks sind chronische Kapitalvernichter, Zombie-Firmen oder reine Dilution-Vehikel.</strong> Wer hier profitabel agieren will, muss mit systematischer Filterung, forensischer Bilanzanalyse und striktem Risikomanagement vorgehen.
+        </p>
+
+        <h3>1. Screening-Workflow (Das Rauschen von vornherein ausblenden)</h3>
+        <p>Nutze professionelle Aktienscreener (Finviz, TradingView, StockTitan, Koyfin oder direkt diesen <strong>ALPHA PENNY Screener</strong>), um illiquide Betrugs- und Verwässerungsfallen sofort auszusortieren:</p>
+
+        <table class="playbook-table">
+          <thead>
+            <tr>
+              <th>Filter-Kriterium</th>
+              <th>Empfohlene Einstellung</th>
+              <th>Warum? (Forensischer Hintergrund)</th>
+              <th>Direkt-Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Börsenplatz</strong></td>
+              <td><span class="badge badge-blue">NASDAQ / NYSE (OTC ausschließen)</span></td>
+              <td>Strengere Reporting- und Compliance-Regeln; deutlich geringeres Betrugsrisiko als im unregulierten Freiverkehr / OTC.</td>
+              <td><button type="button" class="btn btn-sm" data-Jump-preset="SAFE_STANDARD">Im Screener filtern →</button></td>
+            </tr>
+            <tr>
+              <td><strong>Kursspanne</strong></td>
+              <td><span class="badge badge-green">0,80 $ bis 5,00 $</span> (Europa &lt; 1,00 €)</td>
+              <td>Werte unter 1,00 $ droht an NASDAQ/NYSE ein Delisting-Verfahren bzw. Reverse-Splits. Vermeide Sub-Penny-Aktien (0,001 $).</td>
+              <td><button type="button" class="btn btn-sm" data-jump-preset="SAFE_STANDARD">0,80–5,00 $ aktivieren →</button></td>
+            </tr>
+            <tr>
+              <td><strong>Marktkapitalisierung</strong></td>
+              <td><span class="badge badge-purple">30 Mio. $ bis 300 Mio. $</span></td>
+              <td>Unter 30 Mio. $ droht akuter Liquiditätsengpass und extreme Verwässerungsgefahr.</td>
+              <td><button type="button" class="btn btn-sm" data-jump-preset="SAFE_STANDARD">30M–300M $ filtern →</button></td>
+            </tr>
+            <tr>
+              <td><strong>Handelsvolumen</strong></td>
+              <td><span class="badge badge-amber">Average Volume (3M) &gt; 300.000 – 500.000 Aktien</span></td>
+              <td>Verhindert, dass du in einer illiquiden Position mit 10–20 % Bid-Ask-Spread gefangen bist.</td>
+              <td><button type="button" class="btn btn-sm" data-jump-preset="SAFE_STANDARD">Volumen &gt; 300k →</button></td>
+            </tr>
+            <tr>
+              <td><strong>Relative Volume (RVOL)</strong></td>
+              <td><span class="badge badge-cyan">RVOL &gt; 2.0</span> (bei Momentum/News-Trades)</td>
+              <td>Zeigt an, dass frisches institutionelles oder breites Marktvolumen in den Wert fließt.</td>
+              <td><button type="button" class="btn btn-sm" data-jump-preset="UNUSUAL_RVOL">RVOL &gt; 2.0 zeigen →</button></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>2. Qualitätsbewertung: Die 4 Säulen der Due Diligence</h3>
+        <p>Da klassische Kennzahlen wie das KGV bei unprofitablen Microcaps selten greifen, liegt der Fokus auf Substanz, Liquidität und Risikominimierung:</p>
+
+        <div class="grid-2" style="margin-block:1rem;">
+          <div class="panel-card">
+            <h3><span>A. Cash Runway &amp; Verwässerung (Dilution Check)</span><span class="badge badge-red">Überlebenswichtig</span></h3>
+            <ul style="padding-inline-start:1.2rem;margin:0;font-size:0.84rem;display:flex;flex-direction:column;gap:0.5rem;">
+              <li><strong>Cash Runway:</strong> Berechne <code>Barmittel ÷ quartalsweisen operativen Cash-Burn</code>. Wenn die Liquidität für <strong>weniger als 9–12 Monate</strong> reicht, steht eine Notkapitalerhöhung bevor, die den Kurs massiv drückt.</li>
+              <li><strong>Share Count History:</strong> Prüfe die Entwicklung der ausstehenden Aktien (Shares Outstanding) über die letzten 2–3 Jahre. Steigt die Aktienanzahl kontinuierlich um <strong>mehr als 15–20 % pro Jahr</strong>, finanziert das Management das operative Überleben primär über Kapitalerhöhungen auf Kosten der Altaktionäre.</li>
+              <li><strong>SEC Filings (US-Werte):</strong> Suche in den EDGAR-Filings nach Formblättern wie <strong>S-3, 424B (Shelf Registrations)</strong> oder toxischen Wandelanleihen (Convertible Notes). Liegt ein aktives <strong>ATM-Programm (At-The-Market Offering)</strong> vor, verkauft das Unternehmen bei jedem Kurssprung neue Aktien direkt in den Markt.</li>
+            </ul>
+          </div>
+
+          <div class="panel-card">
+            <h3><span>B. Float &amp; Eigentümerstruktur</span><span class="badge badge-amber">Angebots-Dynamik</span></h3>
+            <ul style="padding-inline-start:1.2rem;margin:0;font-size:0.84rem;display:flex;flex-direction:column;gap:0.5rem;">
+              <li><strong>Low Float:</strong> Ein geringer frei handelbarer Streubesitz (<strong>Float &lt; 15–20 Mio. Aktien</strong>) sorgt bei Katalysatoren für schnelle Kursschübe, birgt aber auch hohe Abwärtsvolatilität.</li>
+              <li><strong>Insider-Ownership:</strong> Halten Gründer und Vorstand selbst nennenswerte Anteile (<strong>idealerweise &gt; 10–15 %</strong>) oder verkaufen sie bei jedem Uptrend ("Insider Selling")?</li>
+            </ul>
+          </div>
+
+          <div class="panel-card">
+            <h3><span>C. Echte Katalysatoren vs. "Pump &amp; Dump"</span><span class="badge badge-purple">News-Forensik</span></h3>
+            <ul style="padding-inline-start:1.2rem;margin:0;font-size:0.84rem;display:flex;flex-direction:column;gap:0.5rem;">
+              <li><strong>Belastbare Ereignisse:</strong> Zulassungsentscheidungen (<strong>FDA PDUFA-Dates</strong> bei Biotech), signifikante Umsatzsprünge durch Lizenzverträge, profitable Großaufträge oder das Erreichen des Break-even.</li>
+              <li><strong>Red Flags:</strong> Aggressive Werbe-Newsletter ("Next 1000% Exploding Stock"), unklare Pressemitteilungen ohne konkrete Vertragszahlen, Reverse Mergers mit dubiosen Briefkastenfirmen oder ein Kurs unter 1 $ über Monate ohne klaren Sanierungsplan.</li>
+            </ul>
+          </div>
+
+          <div class="panel-card">
+            <h3><span>D. Technische Verifikation</span><span class="badge badge-cyan">Chart &amp; Volumen</span></h3>
+            <ul style="padding-inline-start:1.2rem;margin:0;font-size:0.84rem;display:flex;flex-direction:column;gap:0.5rem;">
+              <li><strong>Chartstruktur &amp; Liquiditätspools:</strong> Achte darauf, ob der Kurs an markanten Unterstützungen (bspw. <strong>200-Tage-Linie, Volume-Weighted Average Price / VWAP</strong>) Boden bildet oder ob es sich lediglich um einen "Dead Cat Bounce" im intakten Abwärtstrend handelt.</li>
+              <li><strong>Volume Profile:</strong> Liegt substanzielles Handelsvolumen am aktuellen Preislevel (<strong>Point of Control / Value Area</strong>) oder wurde der Kurs mit Mini-Umsätzen nach oben gezogen?</li>
+            </ul>
+          </div>
+        </div>
+
+        <h3>3. Execution &amp; Handwerkszeug</h3>
+        <div class="grid-3">
+          <div class="result-box">
+            <strong>1. Ausschließlich Limit-Orders</strong>
+            <p style="margin:0.35rem 0 0;font-size:0.82rem;color:var(--text-secondary);">Niemals Bestens/Billigst (Market Orders) bei Pennystocks handeln, um extremes Slippage durch breite Spreads zu vermeiden.</p>
+          </div>
+          <div class="result-box">
+            <strong>2. Asymmetrisches CRV (≥ 3:1 oder 4:1)</strong>
+            <p style="margin:0.35rem 0 0;font-size:0.82rem;color:var(--text-secondary);">Positioniere dich nur, wenn das Setup mindestens ein Chance-Risiko-Verhältnis (CRV) von 3:1 oder 4:1 ermöglicht.</p>
+          </div>
+          <div class="result-box">
+            <strong>3. Striktes Positions-Sizing (1–3 %)</strong>
+            <p style="margin:0.35rem 0 0;font-size:0.82rem;color:var(--text-secondary);">Begrenze spekulatives Micro-Cap-Exposure auf maximal 1–3 % deines Gesamtportfolios.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="playbook-section">
+        <h2>Teil 2: Wie du Pennystocks mit 100 % bis 500 %+ Multi-Bagger-Potenzial vor der Masse findest</h2>
+        <p>
+          Große Gewinne bei Micro-Caps und Pennystocks (<strong>100 % bis 500 %+ Kursgewinne</strong>) entstehen nicht durch „billige Aktien“, sondern durch eine <strong>radikale Diskrepanz zwischen Markterwartung und Realität</strong>. Um Multi-Bagger vor der Masse zu entdecken, musst du nach asymmetrischen Katalysatoren und fundamentalen Wendepunkten suchen.
+        </p>
+
+        <h3>1. Die 4 Kernmuster für explosive Kursschübe</h3>
+        <div class="grid-2" style="margin-block:1rem;">
+          <div class="panel-card">
+            <h3><span>Muster A: Der Turnaround / Break-Even-Wendepunkt</span><button type="button" class="btn btn-sm" data-jump-preset="TURNAROUND">Im Screener öffnen →</button></h3>
+            <p style="font-size:0.83rem;margin:0 0 0.5rem;"><strong>Mechanismus:</strong> Ein Unternehmen verbrennt seit Jahren Geld und wird vom Markt mit Insolvenzabschlag bewertet. Wenn die operative Wende gelingt (z. B. Quartalszahlen zeigen erstmals positiven Cashflow oder operativen Gewinn), muss der Markt das Unternehmen von Grund auf neu bewerten.</p>
+            <p style="font-size:0.83rem;margin:0;color:var(--text-secondary);"><strong>Worauf du achtest:</strong> Steigende Bruttomargen bei stagnierenden oder sinkenden Verwaltungskosten (<strong>Operating Leverage</strong>). Der Übergang von negativem zu positivem EBITDA reicht oft für eine Verdopplung der Bewertungsmultiplikatoren.</p>
+          </div>
+
+          <div class="panel-card">
+            <h3><span>Muster B: Binäre Katalysatoren (Biotech &amp; Rohstoffe)</span><button type="button" class="btn btn-sm" data-jump-preset="BINARY_CATALYST">Im Screener öffnen →</button></h3>
+            <p style="font-size:0.83rem;margin:0 0 0.5rem;"><strong>Mechanismus:</strong> Ein einzelnes Event entscheidet über den wirtschaftlichen Wert des Unternehmens.<br>
+            • <strong>Biotech:</strong> FDA-Zulassungen, Phase-2/3-Studiendaten (PDUFA-Dates).<br>
+            • <strong>Exploration/Mining:</strong> Erste Bohrergebnisse mit hoher Erz-/Lithiumkonzentration oder offizielle Machbarkeitsstudien (Feasibility Studies).</p>
+            <p style="font-size:0.83rem;margin:0;color:var(--text-secondary);"><strong>Vorteil &amp; Risiko:</strong> Termine sind über Kalender (z. B. BioPharmCatalyst) monatelang im Voraus bekannt. Scheitert Phase 3, fällt die Aktie oft um 70–90 % (daher Run-up-Exit nutzen!).</p>
+          </div>
+
+          <div class="panel-card">
+            <h3><span>Muster C: Das "Pure Play"-Thema in einem Hype-Sektor</span><button type="button" class="btn btn-sm" data-jump-preset="PURE_PLAY">Im Screener öffnen →</button></h3>
+            <p style="font-size:0.83rem;margin:0 0 0.5rem;"><strong>Mechanismus:</strong> Ein Makro-Trend explodiert (z. B. KI-Infrastruktur, Verteidigung/Drohnen, Festkörperbatterien). Große institutionelle Gelder treiben zuerst die Mega-Caps nach oben. Sobald diese überkauft sind, suchen Privatanleger und Momentum-Fonds nach „kleinen, unentdeckten Profiteuren“ im selben Sektor.</p>
+            <p style="font-size:0.83rem;margin:0;color:var(--text-secondary);"><strong>Worauf du achtest:</strong> Kleine Firmen, die <strong>echte Verträge, Partnerschaften oder Patente mit Marktführern</strong> vorweisen können – keine reinen Pressemitteilungs-Hülsen.</p>
+          </div>
+
+          <div class="panel-card">
+            <h3><span>Muster D: Short Squeeze &amp; Low-Float-Struktur</span><button type="button" class="btn btn-sm" data-jump-preset="SHORT_SQUEEZE">Im Screener öffnen →</button></h3>
+            <p style="font-size:0.83rem;margin:0 0 0.5rem;"><strong>Mechanismus:</strong> Hohe Short-Quote (<strong>Short Interest &gt; 15–20 % des Float</strong>) kombiniert mit einem winzigen frei handelbaren Volumen (<strong>Float &lt; 10–20 Mio. Aktien</strong>).</p>
+            <p style="font-size:0.83rem;margin:0;color:var(--text-secondary);"><strong>Dynamik:</strong> Tritt eine positive Nachricht ein, versuchen Leerverkäufer gleichzeitig ihre Positionen zu schließen, während kaum Verkaufsorders im Orderbuch stehen – der Kurs schießt vertikal nach oben.</p>
+          </div>
+        </div>
+
+        <h3>2. Konkrete Screener-Setups für Wachstum &amp; Momentum</h3>
+        <table class="playbook-table">
+          <thead>
+            <tr>
+              <th>Strategie</th>
+              <th>Filter-Kriterien im Screener</th>
+              <th>Strategisches Ziel</th>
+              <th>Direkt-Filter</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Umsatz-Beschleunigung</strong></td>
+              <td>• Sales Q/Q &gt; +30 %<br>• EPS Q/Q &gt; +25 %<br>• Debt/Equity &lt; 1.0<br>• Price: 1 $ bis 5 $</td>
+              <td>Findet Unternehmen, deren Geschäftsmodell skaliert, bevor Großinvestoren einsteigen.</td>
+              <td><button type="button" class="btn btn-sm btn-primary" data-jump-preset="REVENUE_ACCEL">Setup laden →</button></td>
+            </tr>
+            <tr>
+              <td><strong>Bodenbildung &amp; Akkumulation</strong></td>
+              <td>• Kurs konsolidiert seit 3–6 Monaten in enger Range<br>• Kurs über SMA 50 und SMA 200<br>• On-Balance-Volume (OBV) / Akkumulation steigt stetig</td>
+              <td>Erkennt stilles Einsammeln von Aktien ("Smart Money"), bevor der Ausbruch erfolgt.</td>
+              <td><button type="button" class="btn btn-sm btn-primary" data-jump-preset="ACCUMULATION">Setup laden →</button></td>
+            </tr>
+            <tr>
+              <td><strong>Ungewöhnliches Volumen (RVOL)</strong></td>
+              <td>• Relative Volume (RVOL) &gt; 2.5 (bzw. &gt; 2.0)<br>• Kursveränderung &gt; +5 %<br>• Float &lt; 20 Mio. Aktien</td>
+              <td>Identifiziert den exakten Tag, an dem neue Liquidität und Katalysatoren in den Wert eintreffen.</td>
+              <td><button type="button" class="btn btn-sm btn-primary" data-jump-preset="UNUSUAL_RVOL">Setup laden →</button></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>3. Institutionelles Tracking ("Smart Money" folgen) &amp; 4. Asymmetrisches Trade-Management</h3>
+        <div class="grid-2">
+          <div class="result-box">
+            <h4 style="margin:0 0 0.5rem;">🐋 Spuren institutioneller Käufer (SEC Filings)</h4>
+            <ul style="padding-inline-start:1.2rem;margin:0;font-size:0.83rem;display:flex;flex-direction:column;gap:0.45rem;">
+              <li><strong>SEC Form 13D / 13G:</strong> Zeigt an, wenn ein professioneller Investor <strong>mehr als 5 % der Unternehmensanteile</strong> erworben hat. Steigt ein bekannter Micro-Cap-Hedgefonds aktiv ein, ist das ein starkes Kaufsignal.</li>
+              <li><strong>Form 4 (Cluster-Insiderkäufe):</strong> Wenn CEO, CFO und Vorstandsmitglieder zeitgleich mit eigenem Geld am offenen Markt Aktien kaufen (nicht durch Boni/Optionen), deutet das auf hohes Vertrauen in anstehende Quartalszahlen oder Verträge hin.</li>
+              <li><strong>Regelmäßiges SEC-Screening:</strong> Täglich nach Insider Purchases &gt; 100k USD bei Micro-Caps filtern (direkt im Tab <em>SEC &amp; Smart-Money Radar</em>).</li>
+            </ul>
+          </div>
+
+          <div class="result-box">
+            <h4 style="margin:0 0 0.5rem;">⚖️ Das asymmetrische Trade-Management</h4>
+            <ul style="padding-inline-start:1.2rem;margin:0;font-size:0.83rem;display:flex;flex-direction:column;gap:0.45rem;">
+              <li><strong>Gewinne laufen lassen, Risiko deckeln:</strong> Wenn eine Position um <strong>50 % bis 100 % gestiegen</strong> ist, nimm <strong>30–50 % des Einsatzes heraus</strong> (der Trade ist damit risikofrei). Den Rest lässt du mit einem nachgezogenen Trailing Stop weiterlaufen.</li>
+              <li><strong>Katalysator-Exit:</strong> Wenn du wegen einer FDA-Entscheidung oder einer Konferenz eingestiegen bist, verkaufe in den <strong>"Run-up" vor dem Event</strong> ("Buy the rumor, sell the news"), um das binäre Totalverlustrisiko zu umgehen.</li>
+              <li><strong>Kein verbilligtes Nachkaufen:</strong> Wenn ein Pennystock fällt und die Kernhypothese bricht, wird <strong>nicht nachgekauft</strong> – die Position wird strikt liquidiert.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ====================================================================
+       NATIVE MODAL DIALOG FOR DEEP-DIVE STOCK INSPECTION
+       (modern-web-guidance: dialog - no role="dialog" or aria-modal needed)
+       ==================================================================== -->
+  <dialog id="stock-detail-dialog" closedby="any" aria-labelledby="dialog-stock-title">
+    <div class="dialog-header">
+      <div>
+        <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
+          <h2 id="dialog-stock-title" class="mono" style="margin:0;font-size:1.25rem;">TICKER</h2>
+          <span id="dialog-stock-exchange" class="exch-badge">NASDAQ</span>
+          <span id="dialog-stock-theme" class="badge badge-blue">Sektor</span>
+          <span id="dialog-stock-score" class="score-pill score-high">85 / 100</span>
+        </div>
+        <p id="dialog-stock-name" style="margin:0.2rem 0 0;font-size:0.84rem;color:var(--text-secondary);">Company Name</p>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+        <button type="button" class="btn btn-sm" id="dialog-btn-to-dd">→ In Due-Diligence-Prüfstand laden</button>
+        <button type="button" class="btn btn-sm btn-primary" id="dialog-btn-to-exec">→ In CRV &amp; Positions-Rechner planen</button>
+        <form method="dialog" style="margin:0;">
+          <button value="close" class="btn btn-sm" autofocus aria-label="Analyse-Dialog schließen">✕ Schließen (Esc)</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="dialog-body" id="dialog-body-content">
+      <!-- Dynamically populated by app.js -->
+    </div>
+  </dialog>
+
+  <footer class="site-footer">
+    <div>
+      <strong>ALPHA PENNY // Forensisches Micro-Cap &amp; Multi-Bagger Screening-Terminal</strong> • Datenquellen: TradingView Scanner API, Finviz Ownership &amp; SEC EDGAR XBRL/Submissions.
+      Keine Anlageberatung; dient der systematischen Due Diligence, Bilanzforensik und dem Risikomanagement.
+    </div>
+  </footer>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+name: Update Forensic Pennystock Dataset
+
+on:
+  schedule:
+    # Runs every weekday at 14:45 UTC and 21:15 UTC (US Market Open & Close)
+    - cron: '45 14 * * 1-5'
+    - cron: '15 21 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Fetch latest TradingView, Finviz & SEC EDGAR forensic dataset
+        run: python3 scripts/build_dataset.py
+
+      - name: Commit and push updated dataset
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/pennystocks.json
+          git diff --staged --quiet || git commit -m "chore(data): update live pennystock forensic dataset [skip ci]"
+          git push
