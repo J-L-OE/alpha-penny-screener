@@ -166,7 +166,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadDataset() {
   try {
-    const resp = await fetch('data/pennystocks.json');
+    const resp = await fetch('data/pennystocks.json?v=20261101-v6', { cache: 'no-store' });
     const data = await resp.json();
     state.stocks = data.stocks || [];
     const ts = data.updatedAt ? new Date(data.updatedAt).toLocaleString('de-DE') : 'Aktuell';
@@ -1618,7 +1618,8 @@ function openStockDialog(ticker) {
           </div>
 
           <div class="chart-btn-group" role="group" aria-label="TradingView Indikatoren wählen">
-            <button type="button" class="chart-ctrl-btn active" data-tv-study="entry" title="Lädt Bollinger Bands + Keltner Channels (Squeeze) + VWAP + Moving Average direkt in TradingView">🎯 BB+KC Squeeze &amp; VWAP</button>
+            <button type="button" class="chart-ctrl-btn active" id="btn-toggle-tv-overlay" title="Zeichnet Golden Pocket (0.618–0.786), 0.886 Stop &amp; AVWAP direkt als Zonen-Layer über das TradingView-Fenster">🎯 Zonen im TV-Fenster: EIN</button>
+            <button type="button" class="chart-ctrl-btn active" data-tv-study="entry" title="Lädt Bollinger Bands + Keltner Channels (Squeeze) + VWAP + Moving Average direkt in TradingView">🗜️ BB+KC &amp; VWAP</button>
             <button type="button" class="chart-ctrl-btn" data-tv-study="momentum" title="Lädt Moving Average + VWAP + RSI + MACD in TradingView">📊 RSI &amp; MACD</button>
           </div>
         </div>
@@ -1693,6 +1694,66 @@ function openStockDialog(ticker) {
                 <div class="tv-hud-zone-pill" title="Golden Pocket / AVWAP / Squeeze">Zone<br><strong style="color:#10b981;">${en.breakdown?.zone ?? 0}/30</strong></div>
                 <div class="tv-hud-zone-pill" title="Pullback Volume Dry-Up (<50%)">Vol-Dry<br><strong style="color:#38bdf8;">${en.breakdown?.volume ?? 0}/25</strong></div>
                 <div class="tv-hud-zone-pill" title="Orderbuch Spread < 1.5%">Spread<br><strong style="color:#f59e0b;">${en.breakdown?.spread ?? 0}/20</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- DIRECT ON-CHART ENTRY-ZONE OVERLAY INSIDE TRADINGVIEW WINDOW -->
+          <div class="tv-zone-overlay" id="tv-zone-overlay">
+            <!-- Golden Pocket Shaded Band (0.618 - 0.786) -->
+            <div class="tv-overlay-band" id="tvo-gp-band" style="background:linear-gradient(180deg, rgba(16,185,129,0.22), rgba(245,158,11,0.20));border-top:2px solid #10b981;border-bottom:2px solid #f59e0b;">
+              <span class="mono" style="font-size:0.72rem;font-weight:800;color:#a7f3d0;background:rgba(6,78,59,0.85);padding:2px 8px;border-radius:4px;border:1px solid rgba(16,185,129,0.5);">
+                🎯 GOLDEN POCKET ENTRY-ZONE (0.618–0.786): ${en.fib786 ?? '—'} – ${en.fib618 ?? '—'} ${cur}
+              </span>
+            </div>
+
+            <!-- Invalidation Stop Band (0.886 - P_low) -->
+            <div class="tv-overlay-band" id="tvo-stop-band" style="background:rgba(239,68,68,0.14);border-top:2px dashed #ef4444;"></div>
+
+            <!-- P_high Handle (0.0% Swing Peak) -->
+            <div class="tv-overlay-line" id="tvo-line-phigh" style="border-top:1.5px dotted #38bdf8;">
+              <div class="tv-overlay-handle" id="tvo-handle-phigh" style="background:#0284c7;color:#fff;border:1px solid #38bdf8;" title="Ziehe diesen Griff auf das Impuls-Hoch (P_high) im TradingView-Chart">
+                ⇕ P_high (0%): ${en.swingHigh ?? '—'} ${cur}
+              </div>
+            </div>
+
+            <!-- 50% Fib Reference Line -->
+            <div class="tv-overlay-line" id="tvo-line-fib50" style="border-top:1px dashed rgba(148,163,184,0.45);">
+              <span class="tv-overlay-tag" style="background:rgba(15,23,42,0.85);color:#cbd5e1;">50.0% Retest</span>
+            </div>
+
+            <!-- 0.618 Golden Pocket Top Line -->
+            <div class="tv-overlay-line" id="tvo-line-618">
+              <span class="tv-overlay-tag" style="background:#065f46;color:#6ee7b7;border:1px solid #10b981;">
+                🟢 0.618 Entry-Top: ${en.fib618 ?? '—'} ${cur}
+              </span>
+            </div>
+
+            <!-- 0.786 Golden Pocket Bottom Line -->
+            <div class="tv-overlay-line" id="tvo-line-786">
+              <span class="tv-overlay-tag" style="background:#78350f;color:#fde68a;border:1px solid #f59e0b;">
+                🟢 0.786 Entry-Low: ${en.fib786 ?? '—'} ${cur}
+              </span>
+            </div>
+
+            <!-- 0.886 Invalidation Stop Line -->
+            <div class="tv-overlay-line" id="tvo-line-886">
+              <span class="tv-overlay-tag" style="background:#7f1d1d;color:#fecaca;border:1px solid #ef4444;">
+                🛑 0.886 Stop-Loss: ${en.fib886Stop ?? '—'} ${cur}
+              </span>
+            </div>
+
+            <!-- Anchor-VWAP / VPOC Support Line -->
+            <div class="tv-overlay-line" id="tvo-line-avwap" style="border-top:2px solid #06b6d4;">
+              <span class="tv-overlay-tag" style="background:#164e63;color:#67e8f9;border:1px solid #06b6d4;margin-inline-end:155px;">
+                ⚓ AVWAP: ${en.avwapAnchor ?? st.vwap ?? '—'} ${cur} • VPOC: ${en.vpoc ?? '—'} ${cur}
+              </span>
+            </div>
+
+            <!-- P_low Handle (100% Swing Low Anchor) -->
+            <div class="tv-overlay-line" id="tvo-line-plow" style="border-top:1.5px dotted #94a3b8;">
+              <div class="tv-overlay-handle" id="tvo-handle-plow" style="background:#334155;color:#f8fafc;border:1px solid #94a3b8;" title="Ziehe diesen Griff auf das Impuls-Tief (P_low) im TradingView-Chart">
+                ⇕ P_low (100%): ${en.swingLow ?? '—'} ${cur}
               </div>
             </div>
           </div>
@@ -1955,6 +2016,18 @@ function openStockDialog(ticker) {
     });
   }
 
+  // Direct On-Chart Zone Overlay inside TradingView window
+  const tvOverlayEl = document.getElementById('tv-zone-overlay');
+  const btnToggleTvOverlay = document.getElementById('btn-toggle-tv-overlay');
+  if (btnToggleTvOverlay && tvOverlayEl) {
+    btnToggleTvOverlay.addEventListener('click', () => {
+      const hidden = tvOverlayEl.classList.toggle('is-hidden');
+      btnToggleTvOverlay.classList.toggle('active', !hidden);
+      btnToggleTvOverlay.textContent = hidden ? '🎯 Zonen im TV-Fenster: AUS' : '🎯 Zonen im TV-Fenster: EIN';
+    });
+  }
+  initTvZoneOverlay(st);
+
   // Pine Script v5 drawer & copy
   const btnPineDrawer = document.getElementById('btn-toggle-pine-drawer');
   const pineDrawer = document.getElementById('dialog-pine-drawer');
@@ -1995,6 +2068,91 @@ function openStockDialog(ticker) {
       renderEntryZoneCanvas(canvasEl, st);
     }
   });
+}
+
+// ============================================================================
+// DIRECT ON-CHART TRADINGVIEW ENTRY-ZONE OVERLAY & DRAG CALIBRATOR
+// ============================================================================
+function initTvZoneOverlay(st) {
+  const overlay = document.getElementById('tv-zone-overlay');
+  if (!overlay) return;
+
+  const gpBand = document.getElementById('tvo-gp-band');
+  const stopBand = document.getElementById('tvo-stop-band');
+  const linePhigh = document.getElementById('tvo-line-phigh');
+  const lineFib50 = document.getElementById('tvo-line-fib50');
+  const line618 = document.getElementById('tvo-line-618');
+  const line786 = document.getElementById('tvo-line-786');
+  const line886 = document.getElementById('tvo-line-886');
+  const lineAvwap = document.getElementById('tvo-line-avwap');
+  const linePlow = document.getElementById('tvo-line-plow');
+  const handlePhigh = document.getElementById('tvo-handle-phigh');
+  const handlePlow = document.getElementById('tvo-handle-plow');
+
+  const en = st.entry || {};
+  const pLow = en.swingLow ?? st.price * 0.75;
+  const pHigh = en.swingHigh ?? st.price * 1.25;
+  const avwap = en.avwapAnchor ?? st.vwap ?? st.price;
+  const range = Math.max(0.01, pHigh - pLow);
+  const avwapRel = Math.min(0.95, Math.max(0.05, (pHigh - avwap) / range));
+
+  let topPct = 14; // P_high (0% Fib)
+  let botPct = 84; // P_low (100% Fib)
+
+  const updatePositions = () => {
+    const span = Math.max(18, botPct - topPct);
+    const y50 = topPct + 0.500 * span;
+    const y618 = topPct + 0.618 * span;
+    const y786 = topPct + 0.786 * span;
+    const y886 = topPct + 0.886 * span;
+    const yAvwap = topPct + avwapRel * span;
+
+    if (linePhigh) linePhigh.style.top = `${topPct}%`;
+    if (lineFib50) lineFib50.style.top = `${y50}%`;
+    if (line618) line618.style.top = `${y618}%`;
+    if (line786) line786.style.top = `${y786}%`;
+    if (line886) line886.style.top = `${y886}%`;
+    if (lineAvwap) lineAvwap.style.top = `${yAvwap}%`;
+    if (linePlow) linePlow.style.top = `${botPct}%`;
+
+    if (gpBand) {
+      gpBand.style.top = `${y618}%`;
+      gpBand.style.height = `${Math.max(2, y786 - y618)}%`;
+    }
+    if (stopBand) {
+      stopBand.style.top = `${y886}%`;
+      stopBand.style.height = `${Math.max(2, botPct - y886)}%`;
+    }
+  };
+
+  updatePositions();
+
+  const bindDrag = (handleEl, isTop) => {
+    if (!handleEl) return;
+    let dragging = false;
+    handleEl.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      dragging = true;
+      handleEl.setPointerCapture(e.pointerId);
+    });
+    handleEl.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const r = overlay.getBoundingClientRect();
+      if (!r.height) return;
+      const pct = ((e.clientY - r.top) / r.height) * 100;
+      if (isTop) {
+        topPct = Math.max(4, Math.min(botPct - 20, pct));
+      } else {
+        botPct = Math.min(95, Math.max(topPct + 20, pct));
+      }
+      updatePositions();
+    });
+    handleEl.addEventListener('pointerup', () => { dragging = false; });
+    handleEl.addEventListener('pointercancel', () => { dragging = false; });
+  };
+
+  bindDrag(handlePhigh, true);
+  bindDrag(handlePlow, false);
 }
 
 // ============================================================================

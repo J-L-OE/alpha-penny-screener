@@ -1128,6 +1128,71 @@ dialog::backdrop {
   font-family: var(--font-mono);
 }
 
+/* Direct On-Chart Entry-Zone Overlay inside TradingView Window */
+.tv-zone-overlay {
+  position: absolute;
+  inset-block-start: 42px;
+  inset-block-end: 66px;
+  inset-inline-start: 52px;
+  inset-inline-end: 58px;
+  z-index: 15;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.tv-zone-overlay.is-hidden {
+  display: none;
+}
+
+.tv-overlay-band {
+  position: absolute;
+  inset-inline: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tv-overlay-line {
+  position: absolute;
+  inset-inline: 0;
+  block-size: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.tv-overlay-tag {
+  font-family: var(--font-mono);
+  font-size: 0.69rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+  transform: translateY(-50%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+
+.tv-overlay-handle {
+  pointer-events: auto;
+  cursor: ns-resize;
+  user-select: none;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  transform: translateY(-50%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.75);
+  transition: filter 0.12s ease;
+}
+
+.tv-overlay-handle:hover {
+  filter: brightness(1.18);
+}
+
 .pine-code-drawer {
   background: var(--bg-app);
   border: 1px solid var(--accent-primary);
