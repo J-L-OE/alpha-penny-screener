@@ -1179,7 +1179,9 @@ function openStockDialog(ticker) {
 
   const tvSymbol = `${st.exchange}:${st.ticker}`;
   const themeAttr = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
-  const chartUrl = `https://s.tradingview.com/widgetembed/?frameElementId=tv_chart&symbol=${encodeURIComponent(tvSymbol)}&interval=D&hidesidetoolbar=0&symboledit=1&saveimage=0&toolbarbg=f1f3f6&studies=MASimple%40tv-basicstudies%1FVWAP%40tv-basicstudies%1FRSI%40tv-basicstudies&theme=${themeAttr}&style=1&timezone=Etc%2FUTC`;
+  const buildChartUrl = (interval = 'D') =>
+    `https://s.tradingview.com/widgetembed/?frameElementId=tv_chart&symbol=${encodeURIComponent(tvSymbol)}&interval=${encodeURIComponent(interval)}&hidesidetoolbar=0&withdateranges=1&symboledit=1&saveimage=1&toolbarbg=f1f3f6&studies=MASimple%40tv-basicstudies%1FVWAP%40tv-basicstudies%1FRSI%40tv-basicstudies&theme=${themeAttr}&style=1&timezone=Etc%2FUTC`;
+  const chartUrl = buildChartUrl('D');
 
   const bullHtml = (st.bullSignals || []).length
     ? st.bullSignals.map((b) => `<div class="checklist-item" style="border-inline-start:3px solid var(--accent-primary);">✅ <span>${escapeHtml(b)}</span></div>`).join('')
@@ -1211,19 +1213,46 @@ function openStockDialog(ticker) {
         <a href="https://finviz.com/quote.ashx?t=${st.ticker}" target="_blank" rel="noopener" class="btn btn-sm">Finviz Quote ↗</a>
         ${st.sec?.cik ? `<a href="https://www.sec.gov/edgar/browse/?CIK=${st.sec.cik}" target="_blank" rel="noopener" class="btn btn-sm">SEC EDGAR (${st.sec.cik}) ↗</a>` : `<a href="https://www.sec.gov/edgar/searchedgar/companysearch" target="_blank" rel="noopener" class="btn btn-sm">SEC EDGAR ↗</a>`}
         <a href="http://openinsider.com/search?q=${st.ticker}" target="_blank" rel="noopener" class="btn btn-sm">OpenInsider (Form 4) ↗</a>
-        <a href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}" target="_blank" rel="noopener" class="btn btn-sm">TradingView Vollbild ↗</a>
+        <a href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}" target="_blank" rel="noopener" class="btn btn-sm">TradingView Extern ↗</a>
       </div>
     </div>
 
-    <!-- Embedded Live TradingView Chart -->
-    <div class="chart-frame">
-      <iframe
-        title="TradingView Live Chart für ${st.ticker}"
-        src="${chartUrl}"
-        style="inline-size:100%;block-size:100%;border:0;"
-        loading="lazy"
-        allowfullscreen>
-      </iframe>
+    <!-- Interactive Chart Workbench (Full Height + Timeframe & Fullscreen Controls) -->
+    <div class="chart-workbench" id="dialog-chart-workbench">
+      <div class="chart-toolbar">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;">
+          <span class="mono" style="font-size:0.76rem;font-weight:700;color:var(--text-secondary);">📈 CHART-ARBEITSPLATZ (${st.exchange}:${st.ticker}):</span>
+          <div class="chart-btn-group" role="group" aria-label="Zeiteinheit wählen">
+            <button type="button" class="chart-ctrl-btn" data-tv-interval="5">5m</button>
+            <button type="button" class="chart-ctrl-btn" data-tv-interval="15">15m</button>
+            <button type="button" class="chart-ctrl-btn" data-tv-interval="60">1H</button>
+            <button type="button" class="chart-ctrl-btn" data-tv-interval="240">4H</button>
+            <button type="button" class="chart-ctrl-btn active" data-tv-interval="D">1T (Tag)</button>
+            <button type="button" class="chart-ctrl-btn" data-tv-interval="W">1W (Woche)</button>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;">
+          <div class="chart-btn-group" role="group" aria-label="Chart-Größe anpassen">
+            <button type="button" class="chart-ctrl-btn" data-chart-size="size-compact">Kompakt (520px)</button>
+            <button type="button" class="chart-ctrl-btn active" data-chart-size="size-work">Groß (72% Höhe)</button>
+            <button type="button" class="chart-ctrl-btn" data-chart-size="size-max">Maximal (84% Höhe)</button>
+          </div>
+          <button type="button" class="btn btn-sm btn-primary" id="btn-toggle-chart-fullscreen">
+            ⤢ Vollbild-Arbeitsmodus
+          </button>
+        </div>
+      </div>
+
+      <div class="chart-frame size-work" id="dialog-chart-frame">
+        <iframe
+          id="dialog-tv-iframe"
+          title="TradingView Live Chart für ${st.ticker}"
+          src="${chartUrl}"
+          style="inline-size:100%;block-size:100%;border:0;"
+          allowfullscreen>
+        </iframe>
+      </div>
     </div>
 
     <!-- 4-Pillar Scorecard Breakdown -->
@@ -1321,8 +1350,47 @@ function openStockDialog(ticker) {
     </div>
   `;
 
+  // Bind interactive Chart Workbench controls
+  const bodyEl = document.getElementById('dialog-body-content');
+  const iframeEl = document.getElementById('dialog-tv-iframe');
+  const frameEl = document.getElementById('dialog-chart-frame');
+  const workbenchEl = document.getElementById('dialog-chart-workbench');
+  const fsBtn = document.getElementById('btn-toggle-chart-fullscreen');
+
+  bodyEl.querySelectorAll('[data-tv-interval]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      bodyEl.querySelectorAll('[data-tv-interval]').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (iframeEl) {
+        iframeEl.src = buildChartUrl(btn.dataset.tvInterval);
+      }
+    });
+  });
+
+  bodyEl.querySelectorAll('[data-chart-size]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      bodyEl.querySelectorAll('[data-chart-size]').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (workbenchEl) workbenchEl.classList.remove('is-fullscreen');
+      if (fsBtn) fsBtn.textContent = '⤢ Vollbild-Arbeitsmodus';
+      if (frameEl) {
+        frameEl.style.height = '';
+        frameEl.className = `chart-frame ${btn.dataset.chartSize}`;
+      }
+    });
+  });
+
+  if (fsBtn && workbenchEl) {
+    fsBtn.addEventListener('click', () => {
+      const isFs = workbenchEl.classList.toggle('is-fullscreen');
+      fsBtn.textContent = isFs ? '✕ Vollbild beenden' : '⤢ Vollbild-Arbeitsmodus';
+    });
+  }
+
   const dialog = document.getElementById('stock-detail-dialog');
-  dialog.showModal();
+  if (!dialog.open) {
+    dialog.showModal();
+  }
 }
 
 // ============================================================================
