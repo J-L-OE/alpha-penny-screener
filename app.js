@@ -22,7 +22,27 @@ const state = {
 const PRESET_DEFINITIONS = {
   ALL: {
     title: 'Gesamtes Micro-Cap Universum (NASDAQ, NYSE & Europa):',
-    desc: 'Zeigt alle 450+ überwachten Pennystocks inkl. 4-Säulen-Forensik-Score, Cash Runway in Monaten, echten SEC EDGAR Filings (S-3, 424B5, 13D/13G) und technischer Struktur.',
+    desc: 'Zeigt alle 450+ überwachten Pennystocks inkl. 4-Säulen-Forensik-Score, Cash Runway in Monaten, echten SEC EDGAR Filings (S-3, 424B5, 13D/13G) und algorithmischer Entry-Zone.',
+    apply: () => resetFilterInputs(),
+  },
+  ENTRY_ALERT: {
+    title: '🎯 Aktive Entry-Alerts (100-Punkte Confluence-Score ≥ 80):',
+    desc: 'Filtert Aktien mit höchster Liquiditätskonfluenz (Score ≥ 80/100 aus Trend > SMA200/HL, Golden-Pocket 0.618–0.786 / AVWAP / Squeeze, Volume Dry-Up im Pullback & engem Spread < 1,5 %).',
+    apply: () => resetFilterInputs(),
+  },
+  GOLDEN_POCKET: {
+    title: '📐 Golden-Pocket Pullback-Zone (Fibonacci 0.618 – 0.786 Retest):',
+    desc: 'Nach dem ersten Impuls (Leg 1) korrigiert der Kurs in die institutionelle 61,8 % – 78,6 % Liquiditätszone (Invalidation / Hard Stop bei 88,6 % Retracement).',
+    apply: () => resetFilterInputs(),
+  },
+  BB_KC_SQUEEZE: {
+    title: '🗜️ Bollinger / Keltner Volatility Squeeze (Pre-Breakout Kompression):',
+    desc: 'Bollinger Bänder (20, 2.0σ) liegen innerhalb der Keltner Channels (20, 1.5×ATR): Maximale Volatilitäts-Kontraktion vor dem impulsiven Ausbruch über den SMA 20.',
+    apply: () => resetFilterInputs(),
+  },
+  AVWAP_SUPPORT: {
+    title: '⚓ Anchor-VWAP & Volume-Profile (VPOC / VAH) Support-Retest:',
+    desc: 'Kurs testet das dynamische Anchor-VWAP-Band bzw. das obere Ende der Value Area (VAH = 70 % Volumen-Zone) als institutionelles Unterstützungsniveau.',
     apply: () => resetFilterInputs(),
   },
   SAFE_STANDARD: {
@@ -117,6 +137,10 @@ const PRESET_DEFINITIONS = {
 };
 
 const SETUP_BADGE_MAP = {
+  ENTRY_ALERT: { label: '🎯 ENTRY ≥ 80', cls: 'badge-green' },
+  GOLDEN_POCKET: { label: '📐 Fib 0.618–0.786', cls: 'badge-amber' },
+  BB_KC_SQUEEZE: { label: '🗜️ BB/KC Squeeze', cls: 'badge-cyan' },
+  AVWAP_SUPPORT: { label: '⚓ AVWAP Support', cls: 'badge-blue' },
   SAFE_STANDARD: { label: 'Safe Standard', cls: 'badge-green' },
   REVENUE_ACCEL: { label: 'Sales Scaler', cls: 'badge-blue' },
   ACCUMULATION: { label: 'Akkumulation', cls: 'badge-cyan' },
@@ -151,11 +175,13 @@ async function loadDataset() {
 
     updateKpiStrip();
     populateTickerSelects();
+    renderEntryRadar();
     renderSecRadar();
     applyFiltersAndRender();
 
     // Initialize calculators with top stock
     if (state.stocks.length > 0) {
+      loadStockIntoEntryLab(state.stocks[0].ticker);
       loadStockIntoDdLab(state.stocks[0].ticker);
       loadStockIntoExecution(state.stocks[0].ticker);
     }
@@ -324,12 +350,18 @@ function isDilutionTrap(st) {
 }
 
 function updateKpiStrip() {
+  const entryCount = state.stocks.filter((s) => s.setups.includes('ENTRY_ALERT')).length;
   const safeCount = state.stocks.filter((s) => s.setups.includes('SAFE_STANDARD')).length;
   const rvolCount = state.stocks.filter((s) => s.rvol >= 2.0).length;
   const revCount = state.stocks.filter((s) => s.setups.includes('REVENUE_ACCEL')).length;
   const turnCount = state.stocks.filter((s) => s.setups.includes('TURNAROUND')).length;
   const smartCount = state.stocks.filter((s) => s.setups.includes('SMART_MONEY')).length;
   const trapCount = state.stocks.filter(isDilutionTrap).length;
+
+  const kpiEntryEl = document.getElementById('kpi-entry-count');
+  if (kpiEntryEl) kpiEntryEl.textContent = entryCount;
+  const navEntryEl = document.getElementById('nav-count-entry');
+  if (navEntryEl) navEntryEl.textContent = entryCount;
 
   document.getElementById('kpi-safe-count').textContent = safeCount;
   document.getElementById('kpi-rvol-count').textContent = rvolCount;
@@ -455,7 +487,11 @@ function applyFiltersAndRender() {
     if (state.activePreset === 'WATCHLIST' && !state.watchlist.has(st.ticker)) return false;
     if (state.activePreset === 'DILUTION_TRAP' && !isDilutionTrap(st)) return false;
     if (
-      ['SAFE_STANDARD', 'REVENUE_ACCEL', 'ACCUMULATION', 'UNUSUAL_RVOL', 'TURNAROUND', 'BINARY_CATALYST', 'PURE_PLAY', 'SHORT_SQUEEZE', 'SMART_MONEY'].includes(state.activePreset) &&
+      [
+        'ENTRY_ALERT', 'GOLDEN_POCKET', 'BB_KC_SQUEEZE', 'AVWAP_SUPPORT',
+        'SAFE_STANDARD', 'REVENUE_ACCEL', 'ACCUMULATION', 'UNUSUAL_RVOL',
+        'TURNAROUND', 'BINARY_CATALYST', 'PURE_PLAY', 'SHORT_SQUEEZE', 'SMART_MONEY'
+      ].includes(state.activePreset) &&
       !st.setups.includes(state.activePreset)
     ) {
       return false;
@@ -504,8 +540,8 @@ function applyFiltersAndRender() {
   const sf = state.sortField;
   const dir = state.sortAsc ? 1 : -1;
   state.filtered.sort((a, b) => {
-    let va = sf === 'score' ? a.scores.total : a[sf];
-    let vb = sf === 'score' ? b.scores.total : b[sf];
+    let va = sf === 'score' ? a.scores.total : sf === 'confluenceScore' ? (a.entry?.confluenceScore ?? 0) : a[sf];
+    let vb = sf === 'score' ? b.scores.total : sf === 'confluenceScore' ? (b.entry?.confluenceScore ?? 0) : b[sf];
     if (sf === 'revGrowthQoQ') {
       va = Math.max(a.revGrowthQoQ ?? -999, a.revGrowthYoY ?? -999);
       vb = Math.max(b.revGrowthQoQ ?? -999, b.revGrowthYoY ?? -999);
@@ -590,12 +626,20 @@ function renderScreenerTable() {
       ? `EBITDA: ${st.ebitdaQuarterlyM > 0 ? '+' : ''}${st.ebitdaQuarterlyM}M`
       : `D/E: ${st.debtToEquity}`;
 
-    // Technicals
-    const smaBadge = st.aboveSma50 && st.aboveSma200
-      ? `<span class="badge badge-green">&gt; SMA50 &amp; 200</span>`
-      : st.aboveSma50
-        ? `<span class="badge badge-amber">&gt; SMA50</span>`
-        : `<span class="badge badge-red">&lt; SMA50/200</span>`;
+    // Entry-Zone & Confluence (Column 10)
+    const en = st.entry || {};
+    const confScore = en.confluenceScore ?? 50;
+    const confBadge = confScore >= 80
+      ? `<span class="badge badge-green" title="High-Confluence Entry Alert (≥80 Punkte)">🎯 ${confScore}/100 ALERT</span>`
+      : confScore >= 60
+        ? `<span class="badge badge-amber">${confScore}/100 Conf.</span>`
+        : `<span class="badge badge-blue">${confScore}/100 Conf.</span>`;
+    const zoneStr = en.optEntryLow != null && en.optEntryHigh != null
+      ? `Zone: <strong>${en.optEntryLow}–${en.optEntryHigh}${cur}</strong>`
+      : `VWAP: ${st.vwap ?? '—'}`;
+    const stopStr = en.optStop != null
+      ? `Stop: <span class="neg">${en.optStop}${cur}</span> • ${en.isSqueeze ? '🗜️ Squeeze' : en.inGoldenPocket ? '📐 Fib 61.8' : 'AVWAP'}`
+      : `RSI: ${st.rsi ?? '—'}`;
 
     // Setups
     const setupTags = st.setups
@@ -674,10 +718,9 @@ function renderScreenerTable() {
         </td>
 
         <td>
-          <div>${smaBadge}</div>
-          <div class="mono" style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">
-            RSI: ${st.rsi ?? '—'} • ${st.aboveVwap ? '&gt;VWAP' : '&lt;VWAP'}
-          </div>
+          <div>${confBadge}</div>
+          <div class="mono" style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px;">${zoneStr}</div>
+          <div class="mono" style="font-size:0.71rem;color:var(--text-muted);">${stopStr}</div>
         </td>
 
         <td>
@@ -714,6 +757,282 @@ function toggleWatchlist(ticker) {
   localStorage.setItem('alphaPennyWatchlist', JSON.stringify([...state.watchlist]));
   updateKpiStrip();
   applyFiltersAndRender();
+}
+
+// ============================================================================
+// VIEW 1B: ALGORITHMIC ENTRY-ZONE & 100-POINT CONFLUENCE RADAR
+// ============================================================================
+function renderEntryRadar() {
+  // 1. Top High-Confluence Entry Alerts (Score >= 80)
+  const listAlerts = state.stocks
+    .filter((s) => (s.entry?.confluenceScore || 0) >= 80)
+    .sort((a, b) => (b.entry.confluenceScore * 2 + b.scores.total) - (a.entry.confluenceScore * 2 + a.scores.total))
+    .slice(0, 14);
+
+  const alertsEl = document.getElementById('radar-entry-alerts-list');
+  if (alertsEl) {
+    alertsEl.innerHTML = listAlerts.map((s) => {
+      const cur = s.currency === 'EUR' ? '€' : '$';
+      const en = s.entry;
+      return `
+        <div class="result-box" style="padding:0.65rem 0.8rem;display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
+          <div>
+            <div style="display:flex;align-items:center;gap:0.4rem;">
+              <strong class="mono ticker-symbol" data-entry-open="${s.ticker}">${s.ticker}</strong>
+              <span class="badge badge-green">🎯 ${en.confluenceScore}/100</span>
+              <span class="mono" style="font-size:0.75rem;font-weight:700;">${s.price}${cur}</span>
+            </div>
+            <div class="mono" style="font-size:0.73rem;color:var(--text-secondary);margin-top:2px;">
+              Zone: <strong>${en.optEntryLow}–${en.optEntryHigh}${cur}</strong> • Stop: <span class="neg">${en.optStop}${cur}</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:0.35rem;">
+            <button type="button" class="btn btn-sm" data-entry-calc="${s.ticker}" title="In Formel-Rechner laden">Rechner</button>
+            <button type="button" class="btn btn-sm" data-entry-open="${s.ticker}">Chart</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // 2. Golden Pocket Retests (0.618 - 0.786 Fib Zone)
+  const listGolden = state.stocks
+    .filter((s) => s.setups.includes('GOLDEN_POCKET'))
+    .sort((a, b) => (b.entry?.confluenceScore || 0) - (a.entry?.confluenceScore || 0))
+    .slice(0, 14);
+
+  const goldenEl = document.getElementById('radar-golden-pocket-list');
+  if (goldenEl) {
+    goldenEl.innerHTML = listGolden.map((s) => {
+      const cur = s.currency === 'EUR' ? '€' : '$';
+      const en = s.entry;
+      return `
+        <div class="result-box" style="padding:0.65rem 0.8rem;display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
+          <div>
+            <div style="display:flex;align-items:center;gap:0.4rem;">
+              <strong class="mono ticker-symbol" data-entry-open="${s.ticker}">${s.ticker}</strong>
+              <span class="badge badge-amber">Fib 0.618–0.786</span>
+              <span class="mono" style="font-size:0.75rem;">Kurs: ${s.price}${cur}</span>
+            </div>
+            <div class="mono" style="font-size:0.73rem;color:var(--text-secondary);margin-top:2px;">
+              Pocket: <strong>${en.fib786}–${en.fib618}${cur}</strong> • 0.886-Stop: <span class="neg">${en.fib886Stop}${cur}</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:0.35rem;">
+            <button type="button" class="btn btn-sm" data-entry-calc="${s.ticker}">Rechner</button>
+            <button type="button" class="btn btn-sm" data-entry-open="${s.ticker}">Chart</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // 3. Bollinger / Keltner Volatility Squeeze (BB inside KC)
+  const listSqueeze = state.stocks
+    .filter((s) => s.setups.includes('BB_KC_SQUEEZE'))
+    .sort((a, b) => (b.entry?.confluenceScore || 0) - (a.entry?.confluenceScore || 0))
+    .slice(0, 14);
+
+  const squeezeEl = document.getElementById('radar-squeeze-list');
+  if (squeezeEl) {
+    squeezeEl.innerHTML = listSqueeze.map((s) => {
+      const cur = s.currency === 'EUR' ? '€' : '$';
+      const en = s.entry;
+      return `
+        <div class="result-box" style="padding:0.65rem 0.8rem;display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
+          <div>
+            <div style="display:flex;align-items:center;gap:0.4rem;">
+              <strong class="mono ticker-symbol" data-entry-open="${s.ticker}">${s.ticker}</strong>
+              <span class="badge badge-cyan">${en.squeezeTrigger ? '🔥 Trigger Aktiv' : '🗜️ Squeeze On'}</span>
+              <span class="mono" style="font-size:0.75rem;">${s.price}${cur}</span>
+            </div>
+            <div class="mono" style="font-size:0.73rem;color:var(--text-secondary);margin-top:2px;">
+              SMA20: <strong>${s.sma20 ?? s.price}${cur}</strong> • KC-Stop: <span class="neg">${en.optStop}${cur}</span> • Conf: ${en.confluenceScore}
+            </div>
+          </div>
+          <div style="display:flex;gap:0.35rem;">
+            <button type="button" class="btn btn-sm" data-entry-calc="${s.ticker}">Rechner</button>
+            <button type="button" class="btn btn-sm" data-entry-open="${s.ticker}">Chart</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  document.querySelectorAll('[data-entry-open]').forEach((el) => {
+    el.addEventListener('click', () => openStockDialog(el.dataset.entryOpen));
+  });
+  document.querySelectorAll('[data-entry-calc]').forEach((el) => {
+    el.addEventListener('click', () => {
+      loadStockIntoEntryLab(el.dataset.entryCalc);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  });
+}
+
+function loadStockIntoEntryLab(ticker) {
+  const st = state.stocks.find((s) => s.ticker === ticker);
+  if (!st) return;
+
+  const sel = document.getElementById('entry-ticker-select');
+  if (sel) sel.value = st.ticker;
+  const badge = document.getElementById('entry-lab-ticker-badge');
+  if (badge) badge.textContent = `${st.ticker} (${st.exchange} • ${st.price} ${st.currency === 'EUR' ? '€' : '$'})`;
+
+  const en = st.entry || {};
+  setVal('en-price', st.price);
+  setVal('en-plow', en.swingLow ?? Number((st.price * 0.72).toFixed(3)));
+  setVal('en-phigh', en.swingHigh ?? Number((st.price * 1.35).toFixed(3)));
+  setVal('en-vwap', st.vwap ?? en.avwapAnchor ?? st.price);
+  setVal('en-sma20', st.sma20 ?? st.price);
+  setVal('en-sma200', st.sma200 ?? Number((st.price * 0.88).toFixed(3)));
+  setVal('en-bb-upper', st.bbUpper ?? Number((st.price * 1.12).toFixed(3)));
+  setVal('en-bb-lower', st.bbLower ?? Number((st.price * 0.88).toFixed(3)));
+  setVal('en-atr', st.atr ?? Number((st.price * 0.08).toFixed(3)));
+  setVal('en-vol-ratio', en.pullbackVolRatio ?? 44);
+  setVal('en-spread', en.estSpreadPct ?? 0.65);
+
+  calculateEntryLab();
+}
+
+function calculateEntryLab() {
+  const price = parseFloat(document.getElementById('en-price')?.value) || 2.5;
+  const pLow = parseFloat(document.getElementById('en-plow')?.value) || 1.8;
+  const pHigh = parseFloat(document.getElementById('en-phigh')?.value) || 3.4;
+  const vwap = parseFloat(document.getElementById('en-vwap')?.value) || price;
+  const sma20 = parseFloat(document.getElementById('en-sma20')?.value) || price;
+  const sma200 = parseFloat(document.getElementById('en-sma200')?.value) || price * 0.9;
+  const bbUpper = parseFloat(document.getElementById('en-bb-upper')?.value) || price * 1.1;
+  const bbLower = parseFloat(document.getElementById('en-bb-lower')?.value) || price * 0.9;
+  const atr = parseFloat(document.getElementById('en-atr')?.value) || price * 0.07;
+  const volRatio = parseFloat(document.getElementById('en-vol-ratio')?.value) || 45;
+  const spreadPct = parseFloat(document.getElementById('en-spread')?.value) || 0.8;
+
+  const dec = price < 1.0 ? 4 : 3;
+
+  // 1. Golden Pocket Formula (0.618 - 0.786 Retest + 0.886 Stop)
+  const swingRange = Math.max(0.01, pHigh - pLow);
+  const fib618 = Number((pHigh - 0.618 * swingRange).toFixed(dec));
+  const fib786 = Number((pHigh - 0.786 * swingRange).toFixed(dec));
+  const fib886Stop = Number((pHigh - 0.886 * swingRange).toFixed(dec));
+  const inGoldenPocket = price >= fib786 * 0.96 && price <= fib618 * 1.04;
+
+  // 2. Volume Profile & Anchor-VWAP Model (AVWAP & Value Area High VAH)
+  const avwapBandLow = Number(Math.max(0.01, vwap - 0.5 * atr).toFixed(dec));
+  const vpoc = Number(((vwap * 0.6) + (sma20 * 0.4)).toFixed(dec));
+  const vah = Number((vpoc + 0.35 * atr).toFixed(dec));
+  const inAvwapZone = (price >= avwapBandLow * 0.98 && price <= vwap * 1.04) || (price >= vpoc && price <= vah * 1.03);
+
+  // 3. Bollinger / Keltner Volatility Squeeze
+  const kcUpper = Number((sma20 + 1.5 * atr).toFixed(dec));
+  const kcLower = Number(Math.max(0.01, sma20 - 1.5 * atr).toFixed(dec));
+  const isSqueeze = bbUpper < kcUpper && bbLower > kcLower;
+  const squeezeTrigger = isSqueeze && price >= sma20;
+
+  // 4. 100-Point Confluence Scoring
+  // Criterion 1: Trend / Structure (25 pts)
+  let ptsTrend = 0;
+  if (price >= sma200 && price > pLow) ptsTrend = 25;
+  else if (price > pLow * 1.05 || price >= sma20) ptsTrend = 18;
+  else ptsTrend = 8;
+
+  // Criterion 2: Liquidity Zone (30 pts)
+  let ptsZone = 0;
+  if (inGoldenPocket && inAvwapZone) ptsZone = 30;
+  else if (inGoldenPocket || inAvwapZone || squeezeTrigger) ptsZone = 26;
+  else if (isSqueeze) ptsZone = 22;
+  else ptsZone = 10;
+
+  // Criterion 3: Volume Dry-Up in Pullback (25 pts)
+  let ptsVol = 0;
+  if (volRatio <= 50) ptsVol = 25;
+  else if (volRatio <= 68) ptsVol = 18;
+  else ptsVol = 9;
+
+  // Criterion 4: Orderbook / Spread < 1.5% (20 pts)
+  let ptsSpread = 0;
+  if (spreadPct < 1.0) ptsSpread = 20;
+  else if (spreadPct <= 1.5) ptsSpread = 16;
+  else if (spreadPct <= 2.5) ptsSpread = 8;
+  else ptsSpread = 0;
+
+  const totalConf = Math.min(100, ptsTrend + ptsZone + ptsVol + ptsSpread);
+  const isAlert = totalConf >= 80;
+  const pillCls = totalConf >= 80 ? 'score-high' : totalConf >= 60 ? 'score-mid' : 'score-low';
+
+  // Recommended Optimal Entry & Stop for CRV transfer
+  const optEntryLow = isSqueeze ? Number((sma20 * 0.99).toFixed(dec)) : fib786;
+  const optEntryHigh = isSqueeze ? Number((sma20 * 1.02).toFixed(dec)) : fib618;
+  const optStop = isSqueeze ? kcLower : fib886Stop;
+  const estRisk = Math.max(0.01, optEntryHigh - optStop);
+  const estReward = Math.max(0.02, pHigh - optEntryHigh);
+  const estCrv = (estReward / estRisk).toFixed(1);
+
+  const outEl = document.getElementById('entry-lab-output');
+  if (!outEl) return;
+
+  outEl.innerHTML = `
+    <h3>
+      <span>🎯 Berechnete Entry-Zonen &amp; Confluence-Score</span>
+      <span class="score-pill ${pillCls}">${totalConf} / 100 ${isAlert ? '• ENTRY ALERT!' : 'Punkte'}</span>
+    </h3>
+
+    <div class="grid-3" style="margin-block-end:0.85rem;">
+      <div class="result-box">
+        <div style="font-size:0.72rem;color:var(--text-secondary);">1. Golden Pocket (61.8% – 78.6%)</div>
+        <div class="mono" style="font-size:1.15rem;font-weight:800;color:var(--accent-amber);">${fib786} – ${fib618} $</div>
+        <div class="mono" style="font-size:0.73rem;color:var(--text-muted);">
+          0.886 Stop: <strong class="neg">${fib886Stop} $</strong> ${inGoldenPocket ? '• <span class="pos">✓ IM POCKET</span>' : ''}
+        </div>
+      </div>
+
+      <div class="result-box">
+        <div style="font-size:0.72rem;color:var(--text-secondary);">2. AVWAP &amp; Volume Profile (VAH)</div>
+        <div class="mono" style="font-size:1.15rem;font-weight:800;color:var(--accent-cyan);">${avwapBandLow} – ${vwap.toFixed(dec)} $</div>
+        <div class="mono" style="font-size:0.73rem;color:var(--text-muted);">
+          VPOC: ${vpoc} $ • VAH: ${vah} $ ${inAvwapZone ? '• <span class="pos">✓ SUPPORT</span>' : ''}
+        </div>
+      </div>
+
+      <div class="result-box">
+        <div style="font-size:0.72rem;color:var(--text-secondary);">3. BB / Keltner Squeeze-Check</div>
+        <div class="mono" style="font-size:1.1rem;font-weight:800;color:${isSqueeze ? 'var(--accent-primary)' : 'var(--text-secondary)'};">
+          ${isSqueeze ? '🗜️ SQUEEZE ON (Aktiv)' : 'Kein Squeeze (Expansion)'}
+        </div>
+        <div class="mono" style="font-size:0.73rem;color:var(--text-muted);">
+          KC: ${kcLower}–${kcUpper} $ • CRV zum Peak: <strong>${estCrv}:1</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="result-box" style="display:flex;flex-direction:column;gap:0.45rem;font-size:0.81rem;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <strong>1. Trend / Struktur (Close &gt; SMA 200 oder Higher Low):</strong>
+        <span class="badge ${ptsTrend >= 20 ? 'badge-green' : 'badge-amber'}">${ptsTrend} / 25 Pkt.</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <strong>2. Liquiditätszone (Golden Pocket 0.618–0.786 / AVWAP / Squeeze):</strong>
+        <span class="badge ${ptsZone >= 25 ? 'badge-green' : 'badge-amber'}">${ptsZone} / 30 Pkt.</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <strong>3. Volumendynamik (Pullback-Volumen ${volRatio}% &lt; 50% Spike = Volume Dry-Up):</strong>
+        <span class="badge ${ptsVol >= 20 ? 'badge-green' : 'badge-amber'}">${ptsVol} / 25 Pkt.</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <strong>4. Orderbuch / Spread (${spreadPct}% &lt; 1,5% vom Aktienkurs):</strong>
+        <span class="badge ${ptsSpread >= 16 ? 'badge-green' : 'badge-red'}">${ptsSpread} / 20 Pkt.</span>
+      </div>
+      <div style="border-top:1px solid var(--border-subtle);padding-top:0.45rem;margin-top:0.15rem;display:flex;justify-content:space-between;align-items:center;">
+        <span><strong>Empfohlene Limit-Entry-Zone:</strong> <code class="mono">${optEntryLow} – ${optEntryHigh} $</code> (Invalidation Stop @ <code class="mono neg">${optStop} $</code>)</span>
+        <span class="badge ${isAlert ? 'badge-green' : 'badge-blue'}">${isAlert ? '✓ SIGNAL ≥ 80 ERFÜLLT' : 'Warte auf Retest in Zone'}</span>
+      </div>
+    </div>
+  `;
+
+  outEl.dataset.optEntry = String(optEntryHigh);
+  outEl.dataset.optStop = String(optStop);
+  outEl.dataset.optTarget1 = String(Number(pHigh.toFixed(2)));
+  outEl.dataset.optTarget2 = String(Number((pHigh + swingRange * 0.618).toFixed(2)));
 }
 
 // ============================================================================
@@ -806,6 +1125,8 @@ function renderSecRadar() {
 function populateTickerSelects() {
   const sorted = [...state.stocks].sort((a, b) => a.ticker.localeCompare(b.ticker));
   const opts = sorted.map((s) => `<option value="${s.ticker}">${s.ticker} – ${escapeHtml(s.name.slice(0, 28))} (${s.price} ${s.currency === 'EUR' ? '€' : '$'})</option>`).join('');
+  const entrySel = document.getElementById('entry-ticker-select');
+  if (entrySel) entrySel.innerHTML = opts;
   document.getElementById('dd-ticker-select').innerHTML = opts;
   document.getElementById('exec-ticker-select').innerHTML = opts;
 }
@@ -979,9 +1300,10 @@ function loadStockIntoExecution(ticker) {
   if (!st) return;
 
   document.getElementById('exec-ticker-select').value = st.ticker;
-  const entry = st.price;
+  const en = st.entry || {};
+  const entry = en.optEntryHigh || st.price;
   const atr = st.atr || entry * 0.08;
-  const rawStop = Math.max(entry * 0.78, entry - atr * 1.8);
+  const rawStop = en.optStop && en.optStop < entry ? en.optStop : Math.max(entry * 0.78, entry - atr * 1.8);
   const stop = Number(rawStop.toFixed(entry < 1 ? 3 : 2));
   const riskPerShare = Math.max(0.02, entry - stop);
   const target1 = Number((entry + riskPerShare * 3.5).toFixed(2));
@@ -1093,8 +1415,54 @@ function calculateExecutionPlan() {
 }
 
 function initCalculatorListeners() {
+  const entrySel = document.getElementById('entry-ticker-select');
+  if (entrySel) {
+    entrySel.addEventListener('change', (e) => loadStockIntoEntryLab(e.target.value));
+  }
   document.getElementById('dd-ticker-select').addEventListener('change', (e) => loadStockIntoDdLab(e.target.value));
   document.getElementById('exec-ticker-select').addEventListener('change', (e) => loadStockIntoExecution(e.target.value));
+
+  const entryIds = [
+    'en-price', 'en-plow', 'en-phigh', 'en-vwap', 'en-sma20', 'en-sma200',
+    'en-bb-upper', 'en-bb-lower', 'en-atr', 'en-vol-ratio', 'en-spread'
+  ];
+  entryIds.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', calculateEntryLab);
+      el.addEventListener('change', calculateEntryLab);
+    }
+  });
+
+  const btnEntryToExec = document.getElementById('btn-entry-to-exec');
+  if (btnEntryToExec) {
+    btnEntryToExec.addEventListener('click', () => {
+      const outEl = document.getElementById('entry-lab-output');
+      const curTicker = document.getElementById('entry-ticker-select')?.value;
+      switchToView('view-execution');
+      if (curTicker) {
+        document.getElementById('exec-ticker-select').value = curTicker;
+      }
+      if (outEl?.dataset.optEntry) setVal('ex-entry', outEl.dataset.optEntry);
+      if (outEl?.dataset.optStop) setVal('ex-stop', outEl.dataset.optStop);
+      if (outEl?.dataset.optTarget1) setVal('ex-target1', outEl.dataset.optTarget1);
+      if (outEl?.dataset.optTarget2) setVal('ex-target2', outEl.dataset.optTarget2);
+      calculateExecutionPlan();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
+  const btnCopyPy = document.getElementById('btn-copy-python');
+  if (btnCopyPy) {
+    btnCopyPy.addEventListener('click', async () => {
+      const codeEl = document.getElementById('python-entry-code');
+      if (codeEl && navigator.clipboard) {
+        await navigator.clipboard.writeText(codeEl.innerText);
+        btnCopyPy.textContent = '✓ Python-Code kopiert!';
+        setTimeout(() => { btnCopyPy.textContent = '📋 Python-Code kopieren'; }, 2500);
+      }
+    });
+  }
 
   const ddIds = [
     'dd-cash', 'dd-burn', 'dd-shares-prev', 'dd-shares-now', 'dd-float',
@@ -1255,6 +1623,45 @@ function openStockDialog(ticker) {
       </div>
     </div>
 
+    <!-- Algorithmic Entry-Zone & 100-Point Confluence Breakdown -->
+    <div class="result-box" style="border-color:rgba(16, 185, 129, 0.35);">
+      <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:0.5rem;margin-bottom:0.55rem;">
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+          <strong style="font-size:0.9rem;">🎯 Algorithmische Entry-Zonen &amp; 100-Punkte Confluence-Analyse</strong>
+          <span class="badge ${(st.entry?.confluenceScore || 0) >= 80 ? 'badge-green' : 'badge-amber'}">
+            Confluence: ${st.entry?.confluenceScore ?? 55} / 100 ${(st.entry?.confluenceScore || 0) >= 80 ? '• ENTRY ALERT' : ''}
+          </span>
+        </div>
+        <button type="button" class="btn btn-sm" id="dialog-btn-to-entry-lab">
+          🎯 Im Entry-Zonen-Rechner öffnen →
+        </button>
+      </div>
+      <div class="grid-4" style="gap:0.55rem;">
+        <div class="mono" style="font-size:0.77rem;">
+          <div style="color:var(--text-secondary);">1. Golden Pocket (61.8–78.6%)</div>
+          <div style="font-weight:800;color:var(--accent-amber);">${st.entry?.fib786 ?? '—'} – ${st.entry?.fib618 ?? '—'} ${cur}</div>
+          <div style="color:var(--text-muted);">0.886 Stop: <strong class="neg">${st.entry?.fib886Stop ?? '—'} ${cur}</strong></div>
+        </div>
+        <div class="mono" style="font-size:0.77rem;">
+          <div style="color:var(--text-secondary);">2. AVWAP &amp; Volume Profile</div>
+          <div style="font-weight:800;color:var(--accent-cyan);">AVWAP: ${st.entry?.avwapAnchor ?? st.vwap ?? '—'} ${cur}</div>
+          <div style="color:var(--text-muted);">VPOC: ${st.entry?.vpoc ?? '—'} • VAH: ${st.entry?.vah ?? '—'} ${cur}</div>
+        </div>
+        <div class="mono" style="font-size:0.77rem;">
+          <div style="color:var(--text-secondary);">3. BB / Keltner Squeeze</div>
+          <div style="font-weight:800;color:${st.entry?.isSqueeze ? 'var(--accent-primary)' : 'var(--text-primary)'};">
+            ${st.entry?.isSqueeze ? '🗜️ SQUEEZE ON (Aktiv)' : 'Normal (Kein Squeeze)'}
+          </div>
+          <div style="color:var(--text-muted);">Pullback-Vol: ${st.entry?.pullbackVolRatio ?? '—'}% • Spread: ~${st.entry?.estSpreadPct ?? '—'}%</div>
+        </div>
+        <div class="mono" style="font-size:0.77rem;">
+          <div style="color:var(--text-secondary);">4. Optimale Limit-Zone</div>
+          <div style="font-weight:800;color:var(--accent-primary);">${st.entry?.optEntryLow ?? '—'} – ${st.entry?.optEntryHigh ?? '—'} ${cur}</div>
+          <div style="color:var(--text-muted);">Trend(${st.entry?.breakdown?.trend ?? 0}) + Zone(${st.entry?.breakdown?.zone ?? 0}) + Vol(${st.entry?.breakdown?.volume ?? 0}) + Spr(${st.entry?.breakdown?.spread ?? 0})</div>
+        </div>
+      </div>
+    </div>
+
     <!-- 4-Pillar Scorecard Breakdown -->
     <div class="grid-4">
       <div class="result-box">
@@ -1387,6 +1794,16 @@ function openStockDialog(ticker) {
     });
   }
 
+  const toEntryBtn = document.getElementById('dialog-btn-to-entry-lab');
+  if (toEntryBtn) {
+    toEntryBtn.addEventListener('click', () => {
+      const dialog = document.getElementById('stock-detail-dialog');
+      dialog.close();
+      switchToView('view-entry-radar');
+      loadStockIntoEntryLab(st.ticker);
+    });
+  }
+
   const dialog = document.getElementById('stock-detail-dialog');
   if (!dialog.open) {
     dialog.showModal();
@@ -1399,8 +1816,8 @@ function openStockDialog(ticker) {
 function exportCurrentToCsv() {
   const headers = [
     'Ticker', 'Name', 'Exchange', 'Region', 'Price', 'Change%', 'RVOL', 'AvgVolume3M',
-    'MarketCapM', 'FloatM', 'ForensicScore', 'CashRunwayMonths', 'DilutionYoY%',
-    'InsiderOwn%', 'ShortFloat%', 'RevGrowthQoQ%', 'AboveSMA50_200', 'Setups'
+    'MarketCapM', 'FloatM', 'ForensicScore', 'ConfluenceScore', 'OptEntryLow', 'OptEntryHigh', 'OptStop',
+    'CashRunwayMonths', 'DilutionYoY%', 'InsiderOwn%', 'ShortFloat%', 'RevGrowthQoQ%', 'AboveSMA50_200', 'Setups'
   ];
   const lines = [headers.join(',')];
   for (const s of state.filtered) {
@@ -1416,6 +1833,10 @@ function exportCurrentToCsv() {
       s.marketCapM,
       s.floatM,
       s.scores.total,
+      s.entry?.confluenceScore ?? '',
+      s.entry?.optEntryLow ?? '',
+      s.entry?.optEntryHigh ?? '',
+      s.entry?.optStop ?? '',
       s.cashRunwayMonths,
       s.dilutionYoY,
       s.insiderOwn,

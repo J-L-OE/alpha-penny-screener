@@ -36,18 +36,22 @@
           <span>1. Screener &amp; Setups</span>
           <span class="nav-count" id="nav-count-screener">0</span>
         </button>
+        <button type="button" class="nav-tab" data-view="view-entry-radar" aria-selected="false">
+          <span>🎯 2. Entry-Zonen &amp; Confluence-Radar</span>
+          <span class="nav-count" id="nav-count-entry">113</span>
+        </button>
         <button type="button" class="nav-tab" data-view="view-sec-radar" aria-selected="false">
-          <span>2. SEC &amp; Smart-Money Radar</span>
+          <span>3. SEC &amp; Smart-Money Radar</span>
           <span class="nav-count" id="nav-count-sec">108</span>
         </button>
         <button type="button" class="nav-tab" data-view="view-dd-lab" aria-selected="false">
-          <span>3. Due-Diligence-Prüfstand</span>
+          <span>4. Due-Diligence-Prüfstand</span>
         </button>
         <button type="button" class="nav-tab" data-view="view-execution" aria-selected="false">
-          <span>4. CRV &amp; Positions-Rechner</span>
+          <span>5. CRV &amp; Positions-Rechner</span>
         </button>
         <button type="button" class="nav-tab" data-view="view-playbook" aria-selected="false">
-          <span>5. Komplettes Playbook (Alle Infos)</span>
+          <span>6. Komplettes Playbook (Alle Infos)</span>
         </button>
       </nav>
 
@@ -70,10 +74,19 @@
        TOP KPI SUMMARY STRIP (Click any card to filter immediately)
        ==================================================================== -->
   <section class="kpi-strip" aria-label="Marktübersicht und Schnellfilter">
+    <div class="kpi-card" data-quick-preset="ENTRY_ALERT" role="button" tabindex="0">
+      <div class="kpi-label">
+        <span>🎯 Entry-Alerts (Score ≥ 80)</span>
+        <span class="badge badge-green">Confluence</span>
+      </div>
+      <div class="kpi-value" id="kpi-entry-count">—</div>
+      <div class="kpi-sub">Golden Pocket • BB/KC Squeeze • AVWAP</div>
+    </div>
+
     <div class="kpi-card" data-quick-preset="SAFE_STANDARD" role="button" tabindex="0">
       <div class="kpi-label">
         <span>Safe Standard (0,80–5$)</span>
-        <span class="badge badge-green">Basis-Filter</span>
+        <span class="badge badge-blue">Basis-Filter</span>
       </div>
       <div class="kpi-value" id="kpi-safe-count">—</div>
       <div class="kpi-sub">NASDAQ/NYSE • MCap 30–300M • Vol &gt; 300k</div>
@@ -144,6 +157,10 @@
 
         <div class="preset-pills" id="preset-pills-container">
           <button type="button" class="preset-pill active" data-preset="ALL">Alle Micro-Caps</button>
+          <button type="button" class="preset-pill" data-preset="ENTRY_ALERT">🎯 Entry-Alerts (Confluence ≥ 80)</button>
+          <button type="button" class="preset-pill" data-preset="GOLDEN_POCKET">📐 Golden Pocket (Fib 0.618–0.786)</button>
+          <button type="button" class="preset-pill" data-preset="BB_KC_SQUEEZE">🗜️ Bollinger/Keltner Squeeze</button>
+          <button type="button" class="preset-pill" data-preset="AVWAP_SUPPORT">⚓ AVWAP &amp; Volume-Profile Support</button>
           <button type="button" class="preset-pill" data-preset="SAFE_STANDARD">★ 1. Basis-Qualität (Safe Standard)</button>
           <button type="button" class="preset-pill" data-preset="REVENUE_ACCEL">🚀 Setup: Umsatz-Beschleunigung</button>
           <button type="button" class="preset-pill" data-preset="ACCUMULATION">📈 Setup: Bodenbildung &amp; Akkumulation</button>
@@ -346,7 +363,7 @@
               <th scope="col" data-sort="dilutionYoY" title="Jährliche Veränderung der ausstehenden Aktien + echte SEC EDGAR Filings (S-3, 424B5, 13D/13G)">Dilution &amp; SEC ↕</th>
               <th scope="col" data-sort="insiderOwn" title="Insider-Ownership %, Insider-Transaktionen &amp; Short Interest % des Floats">Insider &amp; Short % ↕</th>
               <th scope="col" data-sort="revGrowthQoQ" title="Umsatzwachstum Q/Q bzw. YoY, Quartals-EBITDA &amp; Verschuldungsgrad (Debt/Equity)">Wachstum &amp; Bilanz ↕</th>
-              <th scope="col" data-sort="rsi" title="Kursposition relativ zu SMA 50, SMA 200, VWAP &amp; RSI (14)">Technik (SMA/VWAP) ↕</th>
+              <th scope="col" data-sort="confluenceScore" title="100-Punkte Entry-Confluence-Score + Optimale Einstiegszone (Golden Pocket 0.618–0.786 / BB-KC Squeeze / AVWAP) &amp; Stop-Loss">Entry-Zone &amp; Confluence ↕</th>
               <th scope="col">Multi-Bagger Setups &amp; Analyse</th>
             </tr>
           </thead>
@@ -354,6 +371,190 @@
             <!-- Dynamically populated by app.js -->
           </tbody>
         </table>
+      </div>
+    </section>
+
+    <!-- ==================================================================
+         VIEW 1B: ENTRY-ZONEN, GOLDEN POCKET, BB/KC SQUEEZE & CONFLUENCE RADAR
+         ================================================================== -->
+    <section id="view-entry-radar" class="spa-view inactive" tabindex="-1" aria-hidden="true" aria-label="Algorithmisches Entry-Zonen und Confluence-Radar">
+      <div class="preset-bar" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1rem;">
+        <div>
+          <h2 style="margin:0 0 0.25rem;font-size:1.1rem;">🎯 Algorithmisches Entry-Zonen- &amp; Confluence-Radar (Kein Chasing am Spike!)</h2>
+          <p style="margin:0;font-size:0.82rem;color:var(--text-secondary);">
+            Berechnet live die optimalen Einstiegsbereiche über <strong>1) Anchor-VWAP &amp; Volume Profile (VPOC/VAH)</strong>, <strong>2) Golden-Pocket-Formel (Fib 0.618–0.786 Retest + 0.886 Stop)</strong>, <strong>3) Bollinger/Keltner Volatility Squeeze (BB &lt; KC)</strong> und das <strong>4) 100-Punkte Confluence-Scoring (Alert ab ≥ 80 Pkt.)</strong>.
+          </p>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+          <label for="entry-ticker-select" style="font-size:0.8rem;font-weight:600;">Aktie im Entry-Labor berechnen:</label>
+          <select id="entry-ticker-select" class="filter-select" style="min-inline-size:240px;"></select>
+        </div>
+      </div>
+
+      <!-- Interactive Entry Zone & 100-Point Confluence Calculator -->
+      <div class="grid-2" style="margin-block-end:1.15rem;">
+        <div class="panel-card">
+          <h3>
+            <span>📐 Interaktiver Entry-Zonen- &amp; Confluence-Formel-Rechner</span>
+            <span class="badge badge-green" id="entry-lab-ticker-badge">Live Formel-Engine</span>
+          </h3>
+
+          <div class="filter-grid" style="grid-template-columns:repeat(auto-fit,minmax(185px,1fr));">
+            <div class="filter-group">
+              <label for="en-price">Aktueller Kurs ($ / €)</label>
+              <input type="number" id="en-price" class="filter-input mono" step="0.01" value="2.85">
+            </div>
+            <div class="filter-group">
+              <label for="en-plow">Swing-Low P_low (vor Impuls)</label>
+              <input type="number" id="en-plow" class="filter-input mono" step="0.01" value="2.10">
+            </div>
+            <div class="filter-group">
+              <label for="en-phigh">Swing-Peak P_high (Leg 1 Run)</label>
+              <input type="number" id="en-phigh" class="filter-input mono" step="0.01" value="3.95">
+            </div>
+            <div class="filter-group">
+              <label for="en-vwap">Anchor-VWAP / VWAP ($)</label>
+              <input type="number" id="en-vwap" class="filter-input mono" step="0.01" value="2.78">
+            </div>
+            <div class="filter-group">
+              <label for="en-sma20">SMA 20 (Basis Bollinger/Keltner)</label>
+              <input type="number" id="en-sma20" class="filter-input mono" step="0.01" value="2.80">
+            </div>
+            <div class="filter-group">
+              <label for="en-sma200">SMA 200 (Übergeordneter Trend)</label>
+              <input type="number" id="en-sma200" class="filter-input mono" step="0.01" value="2.45">
+            </div>
+            <div class="filter-group">
+              <label for="en-bb-upper">Bollinger Upper (20, 2.0σ)</label>
+              <input type="number" id="en-bb-upper" class="filter-input mono" step="0.01" value="3.12">
+            </div>
+            <div class="filter-group">
+              <label for="en-bb-lower">Bollinger Lower (20, 2.0σ)</label>
+              <input type="number" id="en-bb-lower" class="filter-input mono" step="0.01" value="2.48">
+            </div>
+            <div class="filter-group">
+              <label for="en-atr">ATR (20) für Keltner (1.5×ATR)</label>
+              <input type="number" id="en-atr" class="filter-input mono" step="0.01" value="0.24">
+            </div>
+            <div class="filter-group">
+              <label for="en-vol-ratio">Pullback-Volumen (% vom Spike)</label>
+              <input type="number" id="en-vol-ratio" class="filter-input mono" step="5" value="42" title="&lt; 50% = Volume Dry-Up im Pullback">
+            </div>
+            <div class="filter-group">
+              <label for="en-spread">Bid-Ask-Spread (% vom Kurs)</label>
+              <input type="number" id="en-spread" class="filter-input mono" step="0.1" value="0.85" title="&lt; 1.5% = Geringes Slippage-Risiko">
+            </div>
+          </div>
+
+          <div style="margin-block-start:0.9rem;display:flex;flex-wrap:wrap;gap:0.5rem;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.78rem;color:var(--text-secondary);">
+              Formeln: <code>Entry_618 = P_high − 0.618×Range</code> • <code>Entry_786 = P_high − 0.786×Range</code> • <code>Stop_886 = P_high − 0.886×Range</code>
+            </span>
+            <button type="button" class="btn btn-sm btn-primary" id="btn-entry-to-exec">
+              → Berechnete Entry-Zone &amp; 0.886-Stop in CRV-Rechner übertragen
+            </button>
+          </div>
+        </div>
+
+        <!-- Right: Live Calculated Entry Zones & 100-Point Confluence Breakdown -->
+        <div class="panel-card" id="entry-lab-output">
+          <!-- Dynamically populated by app.js -->
+        </div>
+      </div>
+
+      <!-- 3 Live Radar Columns: Golden Pocket, BB/KC Squeeze, AVWAP + High Confluence Alerts -->
+      <div class="grid-3" style="margin-block-end:1.15rem;">
+        <div class="panel-card containment-region">
+          <h3>
+            <span>🎯 Top Entry-Alerts (Confluence ≥ 80 / 100)</span>
+            <span class="badge badge-green">Signal-Trigger ≥ 80</span>
+          </h3>
+          <p style="font-size:0.77rem;color:var(--text-secondary);margin-block:0 0.75rem;">
+            Aktien, die gleichzeitig Trend (&gt;SMA200/HL), Liquiditätszone (0.618–0.786 / AVWAP), Volume Dry-Up und engen Spread (&lt;1,5%) erfüllen.
+          </p>
+          <div id="radar-entry-alerts-list" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+        </div>
+
+        <div class="panel-card containment-region">
+          <h3>
+            <span>📐 Golden-Pocket Retests (Fib 0.618 – 0.786)</span>
+            <span class="badge badge-amber">Pullback-Zone</span>
+          </h3>
+          <p style="font-size:0.77rem;color:var(--text-secondary);margin-block:0 0.75rem;">
+            Werte, die nach dem ersten Impuls (Leg 1) exakt in die <strong>61,8 % – 78,6 % Fibonacci-Liquiditätszone</strong> zurücklaufen (Stop-Loss @ 0.886).
+          </p>
+          <div id="radar-golden-pocket-list" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+        </div>
+
+        <div class="panel-card containment-region">
+          <h3>
+            <span>🗜️ Bollinger / Keltner Volatility Squeeze</span>
+            <span class="badge badge-cyan">Pre-Breakout Kompression</span>
+          </h3>
+          <p style="font-size:0.77rem;color:var(--text-secondary);margin-block:0 0.75rem;">
+            <code>BB_Upper &lt; KC_Upper ∧ BB_Lower &gt; KC_Lower</code>: Maximale Volatilitäts-Kompression vor dem Ausbruch mit engem Risiko am SMA 20.
+          </p>
+          <div id="radar-squeeze-list" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+        </div>
+      </div>
+
+      <!-- Ready-to-use Python Code Module for Custom Bot / Webhook Integration -->
+      <div class="panel-card">
+        <h3>
+          <span>🐍 Produktionsfertiges Python-Modul (pandas / numpy) für dein eigenes Bot- &amp; Webhook-Radar</span>
+          <button type="button" class="btn btn-sm" id="btn-copy-python">📋 Python-Code kopieren</button>
+        </h3>
+        <pre id="python-entry-code" class="mono" style="background:var(--bg-app);padding:1rem;border-radius:var(--radius-sm);border:1px solid var(--border-subtle);overflow-x:auto;font-size:0.76rem;line-height:1.55;margin:0;color:var(--text-primary);"><code>import numpy as np
+import pandas as pd
+
+# 1. Rolling Anchor-VWAP &amp; Volume Profile (VPOC / VAH Liquiditätszentren)
+def calculate_anchored_vwap(df: pd.DataFrame, anchor_idx: int) -&gt; pd.Series:
+    df_slice = df.iloc[anchor_idx:].copy()
+    typical_price = (df_slice['High'] + df_slice['Low'] + df_slice['Close']) / 3.0
+    cum_vol_price = (typical_price * df_slice['Volume']).cumsum()
+    cum_vol = df_slice['Volume'].cumsum()
+    return cum_vol_price / cum_vol
+
+# 2. Die Golden-Pocket-Formel (Struktureller Retest 0.618 - 0.786 + 0.886 Stop)
+def get_fibonacci_entry_zone(p_low: float, p_high: float) -&gt; dict:
+    diff = p_high - p_low
+    entry_618 = p_high - (0.618 * diff)
+    entry_786 = p_high - (0.786 * diff)
+    stop_loss = p_high - (0.886 * diff)
+    return {
+        "zone_high": round(entry_618, 4),
+        "zone_low": round(entry_786, 4),
+        "invalid_level": round(stop_loss, 4),
+    }
+
+# 3. Kompressions-Scan: Bollinger (20, 2.0) in Keltner Channels (20, 1.5 * ATR)
+def check_volatility_squeeze(df: pd.DataFrame, period: int = 20, bb_mult: float = 2.0, kc_mult: float = 1.5) -&gt; bool:
+    sma = df['Close'].rolling(window=period).mean()
+    std = df['Close'].rolling(window=period).std()
+    bb_upper = sma + (std * bb_mult)
+    bb_lower = sma - (std * bb_mult)
+
+    high_low = df['High'] - df['Low']
+    high_close = (df['High'] - df['Close'].shift()).abs()
+    low_close = (df['Low'] - df['Close'].shift()).abs()
+    tr = high_low.combine(high_close, max).combine(low_close, max)
+    atr = tr.rolling(window=period).mean()
+
+    kc_upper = sma + (atr * kc_mult)
+    kc_lower = sma - (atr * kc_mult)
+    is_squeeze = (bb_upper &lt; kc_upper) &amp; (bb_lower &gt; kc_lower)
+    return bool(is_squeeze.iloc[-1])
+
+# 4. 100-Punkte Confluence-Scoring (Signal-Trigger ab Score &gt;= 80)
+def evaluate_entry_confluence(price: float, sma200: float, p_low: float, p_high: float,
+                              avwap: float, pullback_vol: float, spike_vol: float, spread_pct: float) -&gt; dict:
+    fib = get_fibonacci_entry_zone(p_low, p_high)
+    score = 0
+    if price &gt; sma200: score += 25
+    if (fib["zone_low"] &lt;= price &lt;= fib["zone_high"]) or abs(price - avwap) / price &lt;= 0.025: score += 30
+    if pullback_vol &lt; (0.50 * spike_vol): score += 25
+    if spread_pct &lt; 1.5: score += 20
+    return {"confluence_score": score, "trigger_alert": score &gt;= 80, **fib}</code></pre>
       </div>
     </section>
 
@@ -838,6 +1039,95 @@
             </ul>
           </div>
         </div>
+      </div>
+
+      <!-- TEIL 3: ALGORITHMISCHE EINSTIEGSZONEN & CONFLUENCE SCORING -->
+      <div class="playbook-section">
+        <h2>Teil 3: Optimale Einstiegsbereiche programmatisch bestimmen (Liquiditätskonfluenz statt „Chasing“)</h2>
+        <p>
+          Um optimale Einstiegsbereiche programmatisch in dein Radar einzubinden, gibt es keine einzelne magische Formel. Stattdessen berechnet man <strong>Zonen mit hoher Liquiditätskonfluenz</strong> – also Bereiche, an denen institutionelle Akteure typischerweise Liquidität abgreifen oder Positionen aufbauen. Wer ein Breakout-Radar nutzt, kauft <strong>nicht am Spike („Chasing“)</strong>, sondern erfasst algorithmisch entweder den <strong>Pre-Breakout (Kompression)</strong> oder den <strong>strukturellen Retest nach dem ersten Schub (Pullback)</strong>.
+        </p>
+
+        <div class="grid-3" style="margin-block:1rem;">
+          <div class="panel-card">
+            <h3><span>1. Volume-Profile &amp; Anchor-VWAP</span><button type="button" class="btn btn-sm" data-jump-preset="AVWAP_SUPPORT">Im Screener →</button></h3>
+            <p style="font-size:0.83rem;margin:0 0 0.5rem;">
+              <strong>Anchor VWAP (AVWAP):</strong> Verankere den VWAP exakt am Tiefpunkt des letzten signifikanten Impulses oder an der Kerze der Katalysator-News. Der Bereich zwischen <code>AVWAP</code> und <code>AVWAP − 1σ</code> dient als dynamische Re-Entry-Zone.
+            </p>
+            <p style="font-size:0.83rem;margin:0;color:var(--text-secondary);">
+              <strong>Volume Point of Control (VPOC &amp; VAH):</strong> Liegt der Kurs über dem VPOC und fällt auf das obere Ende der Value Area (<strong>VAH = Value Area High, 70 % des Volumens</strong>) zurück, fungiert dieses Niveau als starker institutioneller Support.
+            </p>
+          </div>
+
+          <div class="panel-card">
+            <h3><span>2. Die Golden-Pocket-Formel</span><button type="button" class="btn btn-sm" data-jump-preset="GOLDEN_POCKET">Im Screener →</button></h3>
+            <p style="font-size:0.83rem;margin:0 0 0.5rem;">
+              Nach einem ersten initialen Kurssprung (Leg 1) korrigieren Micro-Caps fast nie flach. Sie suchen Liquidität im Fibonacci-Bereich zwischen <strong>61,8 % und 78,6 %</strong> des vorangegangenen Impulses, um Stop-Losses von Breakout-Tradern abzufischen:
+            </p>
+            <div class="mono" style="background:var(--bg-app);padding:0.55rem;border-radius:4px;font-size:0.76rem;">
+              Range = P_high − P_low<br>
+              Entry_top (61.8%) = P_high − (0.618 × Range)<br>
+              Entry_bottom (78.6%) = P_high − (0.786 × Range)<br>
+              Stop_Loss (88.6%) = P_high − (0.886 × Range)
+            </div>
+            <p style="font-size:0.8rem;margin:0.45rem 0 0;color:var(--text-secondary);">
+              <strong>Vorteil:</strong> Trocknet das Volumen in dieser Zone aus (<strong>Volume Dry-Up</strong>), entsteht oft ein asymmetrisches CRV von <strong>4:1 bis 6:1</strong>.
+            </p>
+          </div>
+
+          <div class="panel-card">
+            <h3><span>3. Bollinger / Keltner Squeeze</span><button type="button" class="btn btn-sm" data-jump-preset="BB_KC_SQUEEZE">Im Screener →</button></h3>
+            <p style="font-size:0.83rem;margin:0 0 0.5rem;">
+              Identifiziert Phasen, in denen Smart Money unauffällig akkumuliert und die Volatilität vor dem Ausbruch maximal kontrahiert ist:
+            </p>
+            <div class="mono" style="background:var(--bg-app);padding:0.55rem;border-radius:4px;font-size:0.76rem;">
+              BB (20, 2.0σ) vs. KC (20, 1.5 × ATR)<br>
+              Squeeze On = (BB_Upper &lt; KC_Upper) ∧ (BB_Lower &gt; KC_Lower)
+            </div>
+            <p style="font-size:0.8rem;margin:0.45rem 0 0;color:var(--text-secondary);">
+              <strong>Entry-Trigger:</strong> Sobald der Squeeze aktiv ist und das Momentum (MACD-Histogramm oder Close &gt; SMA 20) nach oben dreht, liegt der Einstieg direkt am Ausbruchspunkt mit engem Stop unter dem SMA 20.
+            </p>
+          </div>
+        </div>
+
+        <h3>4. Das 100-Punkte Confluence-Scoring für konkrete Entry-Alerts (Score ≥ 80)</h3>
+        <table class="playbook-table">
+          <thead>
+            <tr>
+              <th>Kriterium</th>
+              <th>Logische Bedingung im Radar</th>
+              <th>Gewichtung</th>
+              <th>Direkt-Filter</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>1. Trend / Struktur</strong></td>
+              <td><code>Close &gt; 200 SMA</code> (Tagesbasis) oder <code>Higher Low</code> über Swing-Low + über SMA 50</td>
+              <td><span class="badge badge-blue">25 Punkte</span></td>
+              <td rowspan="4" style="vertical-align:middle;text-align:center;">
+                <button type="button" class="btn btn-primary" data-jump-preset="ENTRY_ALERT">
+                  🎯 Alle Entry-Alerts (Score ≥ 80) im Screener filtern →
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <td><strong>2. Liquiditätszone</strong></td>
+              <td>Kurs befindet sich in der <code>0.618–0.786 Golden-Pocket-Zone</code>, am <code>AVWAP / VAH</code> oder im <code>BB/KC Squeeze</code></td>
+              <td><span class="badge badge-green">30 Punkte</span></td>
+            </tr>
+            <tr>
+              <td><strong>3. Volumendynamik</strong></td>
+              <td>Volumen im Pullback nimmt deutlich ab (<code>&lt; 50–58 % des Spike-Volumens</code> = Volume Dry-Up)</td>
+              <td><span class="badge badge-amber">25 Punkte</span></td>
+            </tr>
+            <tr>
+              <td><strong>4. Orderbuch / Spread</strong></td>
+              <td>Geschätzter Bid-Ask-Spread <code>&lt; 1,5 % des Kurses</code> (Vermeidung von Slippage beim Einstieg)</td>
+              <td><span class="badge badge-purple">20 Punkte</span></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
     </section>

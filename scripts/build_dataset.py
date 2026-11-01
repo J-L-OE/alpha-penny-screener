@@ -30,6 +30,7 @@ TV_COLUMNS = [
     "close",
     "change",
     "volume",
+    "average_volume_10d_calc",
     "average_volume_30d_calc",
     "average_volume_90d_calc",
     "relative_volume_10d_calc",
@@ -55,9 +56,14 @@ TV_COLUMNS = [
     "total_revenue_qoq_growth_fq",
     "earnings_per_share_diluted_yoy_growth_fq",
     "earnings_per_share_diluted_qoq_growth_fq",
+    "SMA20",
     "SMA50",
     "SMA200",
     "EMA20",
+    "BB.upper",
+    "BB.lower",
+    "MACD.macd",
+    "MACD.signal",
     "RSI",
     "VWAP",
     "ATR",
@@ -69,6 +75,8 @@ TV_COLUMNS = [
     "Perf.YTD",
     "Volatility.W",
     "Volatility.M",
+    "High.1M",
+    "Low.1M",
     "High.3M",
     "Low.3M",
     "High.6M",
@@ -422,18 +430,149 @@ def process_row(raw_row, region, fv_map, cik_map, shares_history, sec_filings):
         else:
             dilution_yoy = 8.4
 
-    # Technical metrics (Säule D)
+    # Technical metrics (Säule D) & Algorithmic Entry-Zone Models
+    sma20 = d.get("SMA20") or d.get("EMA20") or price
     sma50 = d.get("SMA50")
     sma200 = d.get("SMA200")
-    vwap = d.get("VWAP")
+    bb_upper = d.get("BB.upper")
+    bb_lower = d.get("BB.lower")
+    macd_val = d.get("MACD.macd")
+    macd_sig = d.get("MACD.signal")
+    macd_hist = (macd_val - macd_sig) if (macd_val is not None and macd_sig is not None) else 0.0
+    vwap = d.get("VWAP") or price
     rsi = d.get("RSI")
+    atr = d.get("ATR") or (price * 0.065)
+    above_sma20 = bool(sma20 and price >= sma20)
     above_sma50 = bool(sma50 and price >= sma50)
     above_sma200 = bool(sma200 and price >= sma200)
     above_vwap = bool(vwap and price >= vwap)
 
+    high_1m = d.get("High.1M")
+    low_1m = d.get("Low.1M")
     high_3m = d.get("High.3M")
     low_3m = d.get("Low.3M")
     range_3m_pct = round(((high_3m - low_3m) / low_3m) * 100.0, 1) if (high_3m and low_3m and low_3m > 0) else None
+
+    # --- 1. Golden-Pocket-Formel (Fibonacci 0.618 - 0.786 Retest) ---
+    p_low = low_1m if (low_1m and high_1m and (high_1m - low_1m) / max(0.01, low_1m) >= 0.12) else (low_3m or price * 0.75)
+    p_high = high_1m if (low_1m and high_1m and (high_1m - low_1m) / max(0.01, low_1m) >= 0.12) else (high_3m or price * 1.35)
+    if p_high <= p_low:
+        p_low = price * 0.78
+        p_high = price * 1.28
+    impulse_range = p_high - p_low
+    fib_618 = round(p_high - (0.618 * impulse_range), 4 if price < 1 else 3)
+    fib_786 = round(p_high - (0.786 * impulse_range), 4 if price < 1 else 3)
+    fib_886 = round(p_high - (0.886 * impulse_range), 4 if price < 1 else 3)
+    in_golden_pocket = bool(fib_786 * 0.96 <= price <= fib_618 * 1.05 and (impulse_range / max(0.01, p_low)) >= 0.14)
+
+    # --- 2. Bollinger / Keltner Volatility Squeeze (BB inside KC) ---
+    kc_upper = sma20 + (atr * 1.5)
+    kc_lower = sma20 - (atr * 1.5)
+    if bb_upper is not None and bb_lower is not None and kc_upper > kc_lower:
+        is_bb_kc_squeeze = bool((bb_upper < kc_upper) and (bb_lower > kc_lower))
+        squeeze_ratio = round((bb_upper - bb_lower) / (kc_upper - kc_lower), 2)
+    else:
+        is_bb_kc_squeeze = False
+        squeeze_ratio = 1.25
+    is_tight_compression = bool(is_bb_kc_squeeze or squeeze_ratio <= 1.06)
+    squeeze_trigger = bool(is_tight_compression and (above_sma20 or macd_hist >= 0))
+
+    # --- 3. Volume-Profile & Anchor-VWAP (AVWAP / VPOC / VAH) ---
+    avwap_anchor = round((p_low + vwap * 2.0) / 3.0, 4 if price < 1 else 3)
+    avwap_band_low = round(avwap_anchor - (0.5 * atr), 4 if price < 1 else 3)
+    vpoc_est = round((sma20 + vwap) / 2.0, 4 if price < 1 else 3)
+    vah_est = round(vpoc_est + (0.35 * atr), 4 if price < 1 else 3)
+    in_avwap_zone = bool(avwap_band_low * 0.97 <= price <= max(avwap_anchor, vah_est) * 1.03 and (above_sma50 or above_sma200 or price >= vwap * 0.96))
+
+    # --- 4. Confluence-Scoring (0 - 100 Punkte) ---
+    # Kriterium 1: Trend / Struktur (max 25 Pkt)
+    conf_trend = 0
+    if above_sma200 and above_sma50:
+        conf_trend = 25
+    elif above_sma200 or (above_sma50 and price > p_low * 1.10):
+        conf_trend = 21
+    elif price > p_low * 1.06 and above_sma20:
+        conf_trend = 16
+    elif price > p_low:
+        conf_trend = 9
+
+    # Kriterium 2: Liquiditätszone (max 30 Pkt)
+    conf_zone = 0
+    entry_strategy_label = "Kein aktives Zone-Signal"
+    opt_entry_low = fib_786
+    opt_entry_high = fib_618
+    opt_stop = fib_886
+
+    if in_golden_pocket and in_avwap_zone:
+        conf_zone = 30
+        entry_strategy_label = "Golden Pocket (0.618–0.786) + AVWAP Konfluenz"
+    elif in_golden_pocket:
+        conf_zone = 28
+        entry_strategy_label = "Golden Pocket Retest (Fib 0.618–0.786)"
+    elif squeeze_trigger:
+        conf_zone = 29
+        entry_strategy_label = "Bollinger/Keltner Squeeze Breakout-Trigger"
+        opt_entry_low = round(sma20 * 0.99, 4 if price < 1 else 3)
+        opt_entry_high = round(max(price, sma20) * 1.015, 4 if price < 1 else 3)
+        opt_stop = round(max(p_low, sma20 - 1.2 * atr), 4 if price < 1 else 3)
+    elif is_tight_compression:
+        conf_zone = 24
+        entry_strategy_label = "Bollinger/Keltner Volatility Squeeze (Pre-Breakout)"
+        opt_entry_low = round(sma20 * 0.985, 4 if price < 1 else 3)
+        opt_entry_high = round(sma20 * 1.01, 4 if price < 1 else 3)
+        opt_stop = round(max(p_low, sma20 - 1.2 * atr), 4 if price < 1 else 3)
+    elif in_avwap_zone:
+        conf_zone = 26
+        entry_strategy_label = "Anchor-VWAP & Value-Area-High (VAH) Support"
+        opt_entry_low = avwap_band_low
+        opt_entry_high = max(avwap_anchor, vah_est)
+        opt_stop = round(avwap_band_low - 0.8 * atr, 4 if price < 1 else 3)
+    else:
+        # Check proximity to Golden Pocket
+        dist_gp = abs(price - fib_618) / max(0.01, price)
+        if dist_gp <= 0.06:
+            conf_zone = 20
+            entry_strategy_label = "Nahe Golden Pocket (Annäherung an 0.618)"
+        elif dist_gp <= 0.12:
+            conf_zone = 12
+            entry_strategy_label = "Pullback läuft (Warte auf 0.618–0.786 Zone)"
+        else:
+            conf_zone = 5
+            entry_strategy_label = "Außerhalb optimaler Entry-Zone (Kein Chasing!)"
+
+    # Kriterium 3: Volumendynamik (max 25 Pkt)
+    avg_vol_10 = d.get("average_volume_10d_calc") or avg_vol_90
+    avg_vol_30 = d.get("average_volume_30d_calc") or avg_vol_90
+    spike_ref_vol = max(avg_vol_10, avg_vol_30, 1)
+    pullback_vol_ratio = round(vol / spike_ref_vol, 2)
+    volume_dry_up = bool(pullback_vol_ratio <= 0.58 and (d.get("change") or 0) <= 3.0)
+
+    conf_vol = 0
+    if volume_dry_up and (in_golden_pocket or in_avwap_zone):
+        conf_vol = 25
+    elif squeeze_trigger and rvol >= 1.35:
+        conf_vol = 25
+    elif volume_dry_up or pullback_vol_ratio <= 0.75:
+        conf_vol = 20
+    elif rvol >= 2.0 and above_vwap:
+        conf_vol = 22
+    else:
+        conf_vol = 11
+
+    # Kriterium 4: Orderbuch / Spread-Schätzung (max 20 Pkt)
+    dollar_vol = price * avg_vol_90
+    est_spread_pct = round(max(0.15, min(4.2, (0.55 / max(0.3, price)) + (350000.0 / max(80000.0, dollar_vol)) * 0.65)), 2)
+    if est_spread_pct <= 0.85:
+        conf_spread = 20
+    elif est_spread_pct < 1.50:
+        conf_spread = 17
+    elif est_spread_pct <= 2.20:
+        conf_spread = 10
+    else:
+        conf_spread = 4
+
+    confluence_score = min(99, conf_trend + conf_zone + conf_vol + conf_spread)
+    is_entry_alert = bool(confluence_score >= 80 and not sec.get("has424B"))
 
     rev_qoq = d.get("total_revenue_qoq_growth_fq")
     rev_yoy = d.get("total_revenue_yoy_growth_fq")
@@ -605,6 +744,16 @@ def process_row(raw_row, region, fv_map, cik_map, shares_history, sec_filings):
     if sec.get("has13DG") or insider_trans > 0.5 or inst_trans > 2.0 or insider_own >= 20.0:
         setups.append("SMART_MONEY")
 
+    # Algorithmic Entry-Zone & Confluence Setups
+    if is_entry_alert:
+        setups.append("ENTRY_ALERT")
+    if in_golden_pocket:
+        setups.append("GOLDEN_POCKET")
+    if is_tight_compression:
+        setups.append("BB_KC_SQUEEZE")
+    if in_avwap_zone:
+        setups.append("AVWAP_SUPPORT")
+
     # --- Red Flags & Bullish Signals ---
     red_flags = []
     if region == "US" and price < 1.00:
@@ -696,15 +845,53 @@ def process_row(raw_row, region, fv_map, cik_map, shares_history, sec_filings):
         "instTrans": inst_trans,
         "shortFloat": short_float,
         "shortRatio": short_ratio,
+        "sma20": round(sma20, 3) if sma20 else None,
         "sma50": round(sma50, 3) if sma50 else None,
         "sma200": round(sma200, 3) if sma200 else None,
+        "bbUpper": round(bb_upper, 3) if bb_upper else None,
+        "bbLower": round(bb_lower, 3) if bb_lower else None,
+        "kcUpper": round(kc_upper, 3) if kc_upper else None,
+        "kcLower": round(kc_lower, 3) if kc_lower else None,
         "vwap": round(vwap, 3) if vwap else None,
         "rsi": round(rsi, 1) if rsi else None,
-        "atr": round(d.get("ATR"), 3) if d.get("ATR") else None,
+        "atr": round(atr, 3) if atr else None,
+        "aboveSma20": above_sma20,
         "aboveSma50": above_sma50,
         "aboveSma200": above_sma200,
         "aboveVwap": above_vwap,
         "range3MPct": range_3m_pct,
+        "entry": {
+            "confluenceScore": confluence_score,
+            "isEntryAlert": is_entry_alert,
+            "strategy": entry_strategy_label,
+            "swingLow": round(p_low, 4 if price < 1 else 3),
+            "swingHigh": round(p_high, 4 if price < 1 else 3),
+            "fib618": fib_618,
+            "fib786": fib_786,
+            "fib886Stop": fib_886,
+            "inGoldenPocket": in_golden_pocket,
+            "isSqueeze": is_tight_compression,
+            "isStrictSqueeze": is_bb_kc_squeeze,
+            "squeezeTrigger": squeeze_trigger,
+            "squeezeRatio": squeeze_ratio,
+            "avwapAnchor": avwap_anchor,
+            "avwapBandLow": avwap_band_low,
+            "vpoc": vpoc_est,
+            "vah": vah_est,
+            "inAvwapZone": in_avwap_zone,
+            "optEntryLow": opt_entry_low,
+            "optEntryHigh": opt_entry_high,
+            "optStop": opt_stop,
+            "pullbackVolRatio": pullback_vol_ratio,
+            "volumeDryUp": volume_dry_up,
+            "estSpreadPct": est_spread_pct,
+            "breakdown": {
+                "trend": conf_trend,
+                "zone": conf_zone,
+                "volume": conf_vol,
+                "spread": conf_spread,
+            },
+        },
         "perfW": round(d.get("Perf.W") or 0, 1),
         "perf1M": round(d.get("Perf.1M") or 0, 1),
         "perf3M": round(d.get("Perf.3M") or 0, 1),
