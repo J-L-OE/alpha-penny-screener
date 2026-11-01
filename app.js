@@ -1547,9 +1547,21 @@ function openStockDialog(ticker) {
 
   const tvSymbol = `${st.exchange}:${st.ticker}`;
   const themeAttr = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
-  const buildChartUrl = (interval = 'D') =>
-    `https://s.tradingview.com/widgetembed/?frameElementId=tv_chart&symbol=${encodeURIComponent(tvSymbol)}&interval=${encodeURIComponent(interval)}&hidesidetoolbar=0&withdateranges=1&symboledit=1&saveimage=1&toolbarbg=f1f3f6&studies=MASimple%40tv-basicstudies%1FVWAP%40tv-basicstudies%1FRSI%40tv-basicstudies&theme=${themeAttr}&style=1&timezone=Etc%2FUTC`;
-  const chartUrl = buildChartUrl('D');
+  const STUDY_PRESETS = {
+    entry: 'BB%40tv-basicstudies%1FKeltnerChannels%40tv-basicstudies%1FVWAP%40tv-basicstudies%1FMASimple%40tv-basicstudies',
+    momentum: 'MASimple%40tv-basicstudies%1FVWAP%40tv-basicstudies%1FRSI%40tv-basicstudies%1FMACD%40tv-basicstudies',
+    clean: 'VWAP%40tv-basicstudies%1FMASimple%40tv-basicstudies'
+  };
+  let currentTvInterval = 'D';
+  let currentStudyPreset = 'entry';
+  const buildChartUrl = (interval = currentTvInterval, studyKey = currentStudyPreset) => {
+    const studies = STUDY_PRESETS[studyKey] || STUDY_PRESETS.entry;
+    return `https://s.tradingview.com/widgetembed/?frameElementId=tv_chart&symbol=${encodeURIComponent(tvSymbol)}&interval=${encodeURIComponent(interval)}&hidesidetoolbar=0&withdateranges=1&symboledit=1&saveimage=1&toolbarbg=f1f3f6&studies=${studies}&theme=${themeAttr}&style=1&timezone=Etc%2FUTC`;
+  };
+  const chartUrl = buildChartUrl('D', 'entry');
+  const en = st.entry || {};
+  const confScore = en.confluenceScore ?? 55;
+  const pineCode = generateTradingViewPineScript(st);
 
   const bullHtml = (st.bullSignals || []).length
     ? st.bullSignals.map((b) => `<div class="checklist-item" style="border-inline-start:3px solid var(--accent-primary);">✅ <span>${escapeHtml(b)}</span></div>`).join('')
@@ -1585,26 +1597,40 @@ function openStockDialog(ticker) {
       </div>
     </div>
 
-    <!-- Interactive Chart Workbench (Full Height + Timeframe & Fullscreen Controls) -->
+    <!-- Interactive Chart Workbench (TradingView + Live Entry-HUD + Drawn Entry-Zone Canvas + Pine Script v5) -->
     <div class="chart-workbench" id="dialog-chart-workbench">
       <div class="chart-toolbar">
-        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;">
-          <span class="mono" style="font-size:0.76rem;font-weight:700;color:var(--text-secondary);">📈 CHART-ARBEITSPLATZ (${st.exchange}:${st.ticker}):</span>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.45rem;">
+          <span class="mono" style="font-size:0.75rem;font-weight:700;color:var(--text-secondary);">📈 ANSICHT:</span>
+          <div class="chart-btn-group" role="group" aria-label="Chart-Modus wählen">
+            <button type="button" class="chart-ctrl-btn active" data-chart-mode="split" title="TradingView Chart links + eingezeichnete Golden Pocket, AVWAP &amp; Volume Profile rechts">⚡ Split: TradingView + Entry-Zonen</button>
+            <button type="button" class="chart-ctrl-btn" data-chart-mode="tv" title="Vollbreite TradingView Chart mit eingeblendetem Entry-Zonen-HUD">📈 TradingView (+ Entry-HUD)</button>
+            <button type="button" class="chart-ctrl-btn" data-chart-mode="zones" title="Vollbreite interaktiver Entry-Zonen-Chart (Golden Pocket 0.618–0.786, 0.886 Stop, AVWAP &amp; VPOC)">🎯 Entry-Zonen-Chart (Vollbild)</button>
+          </div>
+
           <div class="chart-btn-group" role="group" aria-label="Zeiteinheit wählen">
             <button type="button" class="chart-ctrl-btn" data-tv-interval="5">5m</button>
             <button type="button" class="chart-ctrl-btn" data-tv-interval="15">15m</button>
             <button type="button" class="chart-ctrl-btn" data-tv-interval="60">1H</button>
             <button type="button" class="chart-ctrl-btn" data-tv-interval="240">4H</button>
-            <button type="button" class="chart-ctrl-btn active" data-tv-interval="D">1T (Tag)</button>
-            <button type="button" class="chart-ctrl-btn" data-tv-interval="W">1W (Woche)</button>
+            <button type="button" class="chart-ctrl-btn active" data-tv-interval="D">1T</button>
+            <button type="button" class="chart-ctrl-btn" data-tv-interval="W">1W</button>
+          </div>
+
+          <div class="chart-btn-group" role="group" aria-label="TradingView Indikatoren wählen">
+            <button type="button" class="chart-ctrl-btn active" data-tv-study="entry" title="Lädt Bollinger Bands + Keltner Channels (Squeeze) + VWAP + Moving Average direkt in TradingView">🎯 BB+KC Squeeze &amp; VWAP</button>
+            <button type="button" class="chart-ctrl-btn" data-tv-study="momentum" title="Lädt Moving Average + VWAP + RSI + MACD in TradingView">📊 RSI &amp; MACD</button>
           </div>
         </div>
 
-        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.45rem;">
+          <button type="button" class="btn btn-sm" id="btn-toggle-pine-drawer" title="Pine Script v5 Indikator mit allen Entry-Zonen für dein eigenes TradingView kopieren">
+            🌲 Pine Script (TradingView)
+          </button>
           <div class="chart-btn-group" role="group" aria-label="Chart-Größe anpassen">
-            <button type="button" class="chart-ctrl-btn" data-chart-size="size-compact">Kompakt (520px)</button>
-            <button type="button" class="chart-ctrl-btn active" data-chart-size="size-work">Groß (72% Höhe)</button>
-            <button type="button" class="chart-ctrl-btn" data-chart-size="size-max">Maximal (84% Höhe)</button>
+            <button type="button" class="chart-ctrl-btn" data-chart-size="size-compact">520px</button>
+            <button type="button" class="chart-ctrl-btn active" data-chart-size="size-work">72% Höhe</button>
+            <button type="button" class="chart-ctrl-btn" data-chart-size="size-max">84% Höhe</button>
           </div>
           <button type="button" class="btn btn-sm btn-primary" id="btn-toggle-chart-fullscreen">
             ⤢ Vollbild-Arbeitsmodus
@@ -1612,14 +1638,92 @@ function openStockDialog(ticker) {
         </div>
       </div>
 
-      <div class="chart-frame size-work" id="dialog-chart-frame">
-        <iframe
-          id="dialog-tv-iframe"
-          title="TradingView Live Chart für ${st.ticker}"
-          src="${chartUrl}"
-          style="inline-size:100%;block-size:100%;border:0;"
-          allowfullscreen>
-        </iframe>
+      <!-- Collapsible Pine Script v5 Drawer for external TradingView -->
+      <div class="pine-code-drawer is-hidden" id="dialog-pine-drawer">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:0.45rem;">
+          <div style="font-size:0.78rem;">
+            <strong>🌲 TradingView Pine Script v5 Indikator (${st.ticker}):</strong> Zeichnet Golden Pocket (<code>0.618–0.786</code>), <code>0.886 Stop</code>, <code>Anchor-VWAP</code>, <code>BB/KC Squeeze</code> und die <code>100-Punkte Confluence-Tabelle</code> direkt in dein eigenes TradingView (<em>Pine Editor → Einfügen → Zum Chart hinzufügen</em>).
+          </div>
+          <button type="button" class="btn btn-sm btn-primary" id="btn-copy-dialog-pine">📋 Pine Script v5 kopieren</button>
+        </div>
+        <pre id="dialog-pine-pre" class="mono" style="max-block-size:190px;overflow:auto;background:var(--bg-surface);padding:0.65rem;border-radius:4px;border:1px solid var(--border-subtle);font-size:0.72rem;margin:0;"><code>${escapeHtml(pineCode)}</code></pre>
+      </div>
+
+      <div class="chart-frame size-work mode-split" id="dialog-chart-frame">
+        <!-- PANE 1: Live TradingView Widget + Overlaid Entry-Zone HUD -->
+        <div class="chart-pane" id="tv-iframe-pane">
+          <div class="tv-entry-hud" id="tv-entry-hud">
+            <div class="tv-hud-header">
+              <div style="display:flex;align-items:center;gap:0.35rem;">
+                <span class="badge ${confScore >= 80 ? 'badge-green' : 'badge-amber'}">🎯 Conf: ${confScore}/100</span>
+                <strong class="mono" style="font-size:0.75rem;">Entry-Leitstand (${st.ticker})</strong>
+              </div>
+              <div style="display:flex;gap:0.25rem;">
+                <button type="button" class="chart-ctrl-btn" id="btn-hud-side" title="HUD links/rechts verschieben" style="padding:0.1rem 0.35rem;">⇄</button>
+                <button type="button" class="chart-ctrl-btn" id="btn-hud-min" title="HUD minimieren/ausklappen" style="padding:0.1rem 0.4rem;">−</button>
+              </div>
+            </div>
+            <div class="tv-hud-body">
+              <div class="tv-hud-row">
+                <span style="color:#94a3b8;">🔼 Swing-Peak (P_high / Ziel 1):</span>
+                <strong style="color:#38bdf8;">${en.swingHigh ?? '—'} ${cur}</strong>
+              </div>
+              <div class="tv-hud-row" style="background:rgba(16,185,129,0.14);padding:2px 5px;border-radius:4px;border-inline-start:3px solid #10b981;">
+                <span style="color:#a7f3d0;font-weight:700;">🟢 Golden Pocket (0.618–0.786):</span>
+                <strong style="color:#10b981;">${en.fib786 ?? '—'} – ${en.fib618 ?? '—'} ${cur}</strong>
+              </div>
+              <div class="tv-hud-row" style="background:rgba(239,68,68,0.14);padding:2px 5px;border-radius:4px;border-inline-start:3px solid #ef4444;">
+                <span style="color:#fca5a5;font-weight:700;">🛑 Invalidation Stop (0.886):</span>
+                <strong style="color:#ef4444;">${en.fib886Stop ?? '—'} ${cur}</strong>
+              </div>
+              <div class="tv-hud-row">
+                <span style="color:#94a3b8;">⚓ Anchor-VWAP / VAH (70%):</span>
+                <strong style="color:#06b6d4;">${en.avwapAnchor ?? st.vwap ?? '—'} / ${en.vah ?? '—'} ${cur}</strong>
+              </div>
+              <div class="tv-hud-row">
+                <span style="color:#94a3b8;">📊 Volume POC (VPOC) / SMA20:</span>
+                <strong>${en.vpoc ?? '—'} / ${st.sma20 ?? '—'} ${cur}</strong>
+              </div>
+              <div class="tv-hud-row">
+                <span style="color:#94a3b8;">🗜️ BB/KC Squeeze (20, 2.0 / 1.5):</span>
+                <strong style="color:${en.isSqueeze ? '#10b981' : '#f59e0b'};">${en.isSqueeze ? (en.squeezeTrigger ? '🔥 SQUEEZE TRIGGER!' : '🗜️ SQUEEZE ON') : 'Expansion'}</strong>
+              </div>
+              <div class="tv-hud-zone-bar">
+                <div class="tv-hud-zone-pill" title="Trend > SMA 200 / Higher Low">Trend<br><strong style="color:#10b981;">${en.breakdown?.trend ?? 0}/25</strong></div>
+                <div class="tv-hud-zone-pill" title="Golden Pocket / AVWAP / Squeeze">Zone<br><strong style="color:#10b981;">${en.breakdown?.zone ?? 0}/30</strong></div>
+                <div class="tv-hud-zone-pill" title="Pullback Volume Dry-Up (<50%)">Vol-Dry<br><strong style="color:#38bdf8;">${en.breakdown?.volume ?? 0}/25</strong></div>
+                <div class="tv-hud-zone-pill" title="Orderbuch Spread < 1.5%">Spread<br><strong style="color:#f59e0b;">${en.breakdown?.spread ?? 0}/20</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <iframe
+            id="dialog-tv-iframe"
+            title="TradingView Live Chart für ${st.ticker}"
+            src="${chartUrl}"
+            style="inline-size:100%;block-size:100%;border:0;"
+            allowfullscreen>
+          </iframe>
+        </div>
+
+        <!-- PANE 2: Interactive Visual Entry-Zone, Golden Pocket, AVWAP & Volume Profile Canvas -->
+        <div class="chart-pane" id="entry-visual-pane" style="display:flex;flex-direction:column;">
+          <div style="padding:0.4rem 0.7rem;background:rgba(15,23,42,0.95);border-block-end:1px solid var(--border-subtle);display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0.4rem;font-size:0.73rem;">
+            <div class="mono" style="display:flex;align-items:center;gap:0.45rem;">
+              <strong style="color:var(--accent-primary);">🎯 EINGEZEICHNETE ENTRY-ZONEN (${st.ticker})</strong>
+              <span style="color:var(--text-muted);">| Maus bewegen für Live-Fib &amp; CRV-Fadenkreuz</span>
+            </div>
+            <div class="mono" style="display:flex;gap:0.55rem;font-size:0.7rem;">
+              <span style="color:#10b981;">■ Golden Pocket (0.618–0.786)</span>
+              <span style="color:#ef4444;">--- 0.886 Stop</span>
+              <span style="color:#06b6d4;">━ Anchor-VWAP</span>
+              <span style="color:#a855f7;">▨ VPOC / VAH</span>
+            </div>
+          </div>
+          <div style="flex:1 1 auto;position:relative;min-block-size:0;">
+            <canvas id="entry-zone-canvas" style="inline-size:100%;block-size:100%;display:block;cursor:crosshair;"></canvas>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1763,13 +1867,50 @@ function openStockDialog(ticker) {
   const frameEl = document.getElementById('dialog-chart-frame');
   const workbenchEl = document.getElementById('dialog-chart-workbench');
   const fsBtn = document.getElementById('btn-toggle-chart-fullscreen');
+  const tvPane = document.getElementById('tv-iframe-pane');
+  const zonesPane = document.getElementById('entry-visual-pane');
+  const canvasEl = document.getElementById('entry-zone-canvas');
+  const hudEl = document.getElementById('tv-entry-hud');
+  let activeChartMode = 'split';
+  let activeSizeClass = 'size-work';
+
+  const syncFrameClass = () => {
+    if (!frameEl) return;
+    frameEl.className = `chart-frame ${activeSizeClass} ${activeChartMode === 'split' ? 'mode-split' : ''}`;
+  };
+
+  bodyEl.querySelectorAll('[data-chart-mode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      bodyEl.querySelectorAll('[data-chart-mode]').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeChartMode = btn.dataset.chartMode;
+      if (tvPane) tvPane.classList.toggle('is-hidden', activeChartMode === 'zones');
+      if (zonesPane) zonesPane.classList.toggle('is-hidden', activeChartMode === 'tv');
+      syncFrameClass();
+      requestAnimationFrame(() => {
+        if (canvasEl && activeChartMode !== 'tv') renderEntryZoneCanvas(canvasEl, st);
+      });
+    });
+  });
 
   bodyEl.querySelectorAll('[data-tv-interval]').forEach((btn) => {
     btn.addEventListener('click', () => {
       bodyEl.querySelectorAll('[data-tv-interval]').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
+      currentTvInterval = btn.dataset.tvInterval;
       if (iframeEl) {
-        iframeEl.src = buildChartUrl(btn.dataset.tvInterval);
+        iframeEl.src = buildChartUrl(currentTvInterval, currentStudyPreset);
+      }
+    });
+  });
+
+  bodyEl.querySelectorAll('[data-tv-study]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      bodyEl.querySelectorAll('[data-tv-study]').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentStudyPreset = btn.dataset.tvStudy;
+      if (iframeEl) {
+        iframeEl.src = buildChartUrl(currentTvInterval, currentStudyPreset);
       }
     });
   });
@@ -1778,12 +1919,16 @@ function openStockDialog(ticker) {
     btn.addEventListener('click', () => {
       bodyEl.querySelectorAll('[data-chart-size]').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
+      activeSizeClass = btn.dataset.chartSize;
       if (workbenchEl) workbenchEl.classList.remove('is-fullscreen');
       if (fsBtn) fsBtn.textContent = '⤢ Vollbild-Arbeitsmodus';
       if (frameEl) {
         frameEl.style.height = '';
-        frameEl.className = `chart-frame ${btn.dataset.chartSize}`;
+        syncFrameClass();
       }
+      requestAnimationFrame(() => {
+        if (canvasEl && activeChartMode !== 'tv') renderEntryZoneCanvas(canvasEl, st);
+      });
     });
   });
 
@@ -1791,6 +1936,41 @@ function openStockDialog(ticker) {
     fsBtn.addEventListener('click', () => {
       const isFs = workbenchEl.classList.toggle('is-fullscreen');
       fsBtn.textContent = isFs ? '✕ Vollbild beenden' : '⤢ Vollbild-Arbeitsmodus';
+      requestAnimationFrame(() => {
+        if (canvasEl && activeChartMode !== 'tv') renderEntryZoneCanvas(canvasEl, st);
+      });
+    });
+  }
+
+  // HUD controls inside TradingView window
+  const btnHudSide = document.getElementById('btn-hud-side');
+  const btnHudMin = document.getElementById('btn-hud-min');
+  if (btnHudSide && hudEl) {
+    btnHudSide.addEventListener('click', () => hudEl.classList.toggle('pos-right'));
+  }
+  if (btnHudMin && hudEl) {
+    btnHudMin.addEventListener('click', () => {
+      const isMin = hudEl.classList.toggle('is-minimized');
+      btnHudMin.textContent = isMin ? '+' : '−';
+    });
+  }
+
+  // Pine Script v5 drawer & copy
+  const btnPineDrawer = document.getElementById('btn-toggle-pine-drawer');
+  const pineDrawer = document.getElementById('dialog-pine-drawer');
+  const btnCopyPine = document.getElementById('btn-copy-dialog-pine');
+  if (btnPineDrawer && pineDrawer) {
+    btnPineDrawer.addEventListener('click', () => {
+      pineDrawer.classList.toggle('is-hidden');
+    });
+  }
+  if (btnCopyPine) {
+    btnCopyPine.addEventListener('click', async () => {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(pineCode);
+        btnCopyPine.textContent = '✓ Pine Script kopiert!';
+        setTimeout(() => { btnCopyPine.textContent = '📋 Pine Script v5 kopieren'; }, 2500);
+      }
     });
   }
 
@@ -1808,6 +1988,537 @@ function openStockDialog(ticker) {
   if (!dialog.open) {
     dialog.showModal();
   }
+
+  // Render interactive Entry-Zone & Volume Profile Canvas after modal opens
+  requestAnimationFrame(() => {
+    if (canvasEl) {
+      renderEntryZoneCanvas(canvasEl, st);
+    }
+  });
+}
+
+// ============================================================================
+// INTERACTIVE ENTRY-ZONE, GOLDEN POCKET, AVWAP & VOLUME PROFILE CANVAS ENGINE
+// ============================================================================
+function renderEntryZoneCanvas(canvas, st) {
+  const parent = canvas.parentElement;
+  if (!parent) return;
+  const rect = parent.getBoundingClientRect();
+  const width = Math.max(360, rect.width || 620);
+  const height = Math.max(420, rect.height || 580);
+  const dpr = window.devicePixelRatio || 1;
+
+  canvas.width = Math.floor(width * dpr);
+  canvas.height = Math.floor(height * dpr);
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const cur = st.currency === 'EUR' ? '€' : '$';
+  const en = st.entry || {};
+  const price = st.price || 2.5;
+  const dec = price < 1.0 ? 4 : 3;
+
+  const pLow = en.swingLow ?? Number((price * 0.72).toFixed(dec));
+  const pHigh = en.swingHigh ?? Number((price * 1.32).toFixed(dec));
+  const swingRange = Math.max(0.02, pHigh - pLow);
+
+  const fib382 = Number((pHigh - 0.382 * swingRange).toFixed(dec));
+  const fib500 = Number((pHigh - 0.500 * swingRange).toFixed(dec));
+  const fib618 = en.fib618 ?? Number((pHigh - 0.618 * swingRange).toFixed(dec));
+  const fib786 = en.fib786 ?? Number((pHigh - 0.786 * swingRange).toFixed(dec));
+  const fib886Stop = en.fib886Stop ?? Number((pHigh - 0.886 * swingRange).toFixed(dec));
+
+  const avwap = en.avwapAnchor ?? st.vwap ?? price;
+  const vpoc = en.vpoc ?? Number(((avwap + price) / 2).toFixed(dec));
+  const vah = en.vah ?? Number((vpoc + swingRange * 0.08).toFixed(dec));
+  const sma20 = st.sma20 ?? price;
+  const sma200 = st.sma200 ?? Number((pLow * 0.96).toFixed(dec));
+  const atr = st.atr ?? Number((swingRange * 0.09).toFixed(dec));
+
+  const minPrice = Math.min(pLow, fib886Stop, sma200, price) * 0.94;
+  const maxPrice = Math.max(pHigh, price, vah) * 1.05;
+  const priceSpan = Math.max(0.05, maxPrice - minPrice);
+
+  // Layout paddings
+  const padLeft = 14;
+  const padRight = 92; // Price axis + labels
+  const padTop = 26;
+  const padBottom = 86; // Volume + Squeeze bar
+  const plotW = width - padLeft - padRight;
+  const plotH = height - padTop - padBottom;
+
+  const yForPrice = (p) => padTop + ((maxPrice - p) / priceSpan) * plotH;
+  const priceForY = (y) => maxPrice - ((y - padTop) / plotH) * priceSpan;
+
+  // Deterministic 42-bar OHLCV impulse + pullback structure anchored to real levels
+  const numBars = 42;
+  const anchorIdx = 8; // Impulse start at P_low
+  const peakIdx = 24;  // Impulse peak at P_high
+  const bars = [];
+  let seed = 0;
+  for (let i = 0; i < st.ticker.length; i++) seed += st.ticker.charCodeAt(i) * (i + 1);
+
+  const pseudoRand = (idx) => {
+    const x = Math.sin(seed + idx * 12.9898) * 43758.5453;
+    return x - Math.floor(x);
+  };
+
+  let cumTPV = 0;
+  let cumVol = 0;
+
+  for (let i = 0; i < numBars; i++) {
+    let targetClose;
+    if (i < anchorIdx) {
+      // Pre-impulse base near P_low
+      const t = i / anchorIdx;
+      targetClose = pLow * (1.03 - 0.03 * t) + (pseudoRand(i) - 0.5) * atr * 0.4;
+    } else if (i === anchorIdx) {
+      targetClose = pLow * 1.01;
+    } else if (i <= peakIdx) {
+      // Strong Leg-1 Impulse from P_low to P_high
+      const t = (i - anchorIdx) / (peakIdx - anchorIdx);
+      const ease = Math.pow(t, 0.85);
+      targetClose = pLow + ease * (pHigh - pLow) + (pseudoRand(i) - 0.48) * atr * 0.55;
+    } else if (i < numBars - 1) {
+      // Structural Pullback from P_high toward current price (Golden Pocket / AVWAP test)
+      const t = (i - peakIdx) / (numBars - 1 - peakIdx);
+      const ease = 1 - Math.pow(1 - t, 1.3);
+      targetClose = pHigh - ease * (pHigh - price) + (pseudoRand(i) - 0.5) * atr * 0.4;
+    } else {
+      targetClose = price;
+    }
+
+    const prevClose = i > 0 ? bars[i - 1].close : targetClose * 0.99;
+    const open = i === numBars - 1 ? Number((price / (1 + (st.change || 0) / 100)).toFixed(dec)) : prevClose;
+    const close = Number(targetClose.toFixed(dec));
+    const barSpread = atr * (i >= anchorIdx && i <= peakIdx ? 0.85 : 0.48);
+    const high = i === peakIdx ? pHigh : Number((Math.max(open, close) + barSpread * (0.3 + 0.5 * pseudoRand(i + 50))).toFixed(dec));
+    const low = i === anchorIdx ? pLow : Number((Math.min(open, close) - barSpread * (0.3 + 0.5 * pseudoRand(i + 90))).toFixed(dec));
+
+    // Volume: Spike during impulse (bars 10..24), Volume Dry-Up during pullback (bars 25..41)
+    let volMult = 0.55;
+    if (i >= anchorIdx && i <= peakIdx) {
+      volMult = 1.6 + 1.8 * Math.sin(((i - anchorIdx) / (peakIdx - anchorIdx)) * Math.PI);
+    } else if (i > peakIdx) {
+      volMult = ((en.pullbackVolRatio || 42) / 100) * (0.75 + 0.4 * pseudoRand(i + 120));
+    }
+    const vol = Math.round((st.avgVolume || 500000) * volMult);
+
+    // Rolling Anchor-VWAP from anchorIdx
+    let barAvwap = null;
+    if (i >= anchorIdx) {
+      const typ = (high + low + close) / 3;
+      cumTPV += typ * vol;
+      cumVol += vol;
+      barAvwap = cumTPV / cumVol;
+    }
+
+    bars.push({ open, high, low, close, vol, avwap: barAvwap });
+  }
+
+  // Calibrate Anchor-VWAP curve end to match st.entry.avwapAnchor
+  const rawLastAvwap = bars[bars.length - 1].avwap || avwap;
+  const avwapScale = avwap / rawLastAvwap;
+  for (let i = anchorIdx; i < numBars; i++) {
+    const blend = (i - anchorIdx) / (numBars - 1 - anchorIdx);
+    bars[i].avwap = bars[i].avwap * (1 + (avwapScale - 1) * blend);
+  }
+
+  // Compute Volume-by-Price Profile (20 horizontal price bins)
+  const numBins = 20;
+  const bins = new Array(numBins).fill(0);
+  for (const b of bars) {
+    const idx = Math.min(numBins - 1, Math.max(0, Math.floor(((b.close - minPrice) / priceSpan) * numBins)));
+    bins[idx] += b.vol;
+  }
+  // Emphasize VPOC & VAH bin from stock's real entry model
+  const vpocBinIdx = Math.min(numBins - 1, Math.max(0, Math.floor(((vpoc - minPrice) / priceSpan) * numBins)));
+  bins[vpocBinIdx] = Math.max(...bins) * 1.25;
+  const maxBinVol = Math.max(1, ...bins);
+
+  const drawScene = (hoverX = null, hoverY = null) => {
+    ctx.clearRect(0, 0, width, height);
+
+    // 1. Background
+    ctx.fillStyle = '#090d16';
+    ctx.fillRect(0, 0, width, height);
+
+    // Subtle horizontal grid lines
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.08)';
+    ctx.lineWidth = 1;
+    for (let g = 0; g <= 6; g++) {
+      const gy = padTop + (plotH / 6) * g;
+      ctx.beginPath();
+      ctx.moveTo(padLeft, gy);
+      ctx.lineTo(padLeft + plotW, gy);
+      ctx.stroke();
+    }
+
+    // 2. Shaded Golden Pocket Zone (0.618 to 0.786)
+    const y618 = yForPrice(fib618);
+    const y786 = yForPrice(fib786);
+    const gpGrad = ctx.createLinearGradient(0, y618, 0, y786);
+    gpGrad.addColorStop(0, 'rgba(16, 185, 129, 0.24)');
+    gpGrad.addColorStop(1, 'rgba(245, 158, 11, 0.22)');
+    ctx.fillStyle = gpGrad;
+    ctx.fillRect(padLeft, y618, plotW, Math.max(2, y786 - y618));
+
+    // Golden Pocket Borders (0.618 & 0.786)
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(padLeft, y618);
+    ctx.lineTo(padLeft + plotW, y618);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(padLeft, y786);
+    ctx.lineTo(padLeft + plotW, y786);
+    ctx.stroke();
+
+    // Label inside Golden Pocket
+    ctx.fillStyle = 'rgba(16, 185, 129, 0.92)';
+    ctx.font = '700 10.5px "JetBrains Mono", monospace';
+    ctx.fillText(`🎯 GOLDEN POCKET ENTRY-ZONE (61.8% – 78.6%): ${fib786} – ${fib618} ${cur}`, padLeft + 8, Math.min(y786 - 5, (y618 + y786) / 2 + 4));
+
+    // 3. Invalidation Stop-Loss Zone (< 0.886)
+    const y886 = yForPrice(fib886Stop);
+    const yLow = yForPrice(pLow);
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.13)';
+    ctx.fillRect(padLeft, y886, plotW, Math.max(2, Math.min(padTop + plotH, yLow) - y886));
+
+    ctx.save();
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(padLeft, y886);
+    ctx.lineTo(padLeft + plotW, y886);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = '#fca5a5';
+    ctx.font = '700 10px "JetBrains Mono", monospace';
+    ctx.fillText(`🛑 0.886 INVALIDATION STOP-LOSS: ${fib886Stop} ${cur}`, padLeft + 8, y886 - 5);
+
+    // 4. Impulse Swing Peak (P_high) & Swing Low (P_low) & Fib 38.2 / 50.0
+    const drawFibLine = (lvlPrice, label, color, dashed = true) => {
+      const y = yForPrice(lvlPrice);
+      if (y < padTop - 5 || y > padTop + plotH + 5) return;
+      ctx.save();
+      if (dashed) ctx.setLineDash([3, 4]);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padLeft, y);
+      ctx.lineTo(padLeft + plotW, y);
+      ctx.stroke();
+      ctx.restore();
+
+      // Right axis tag
+      ctx.fillStyle = color;
+      ctx.font = '600 9.5px "JetBrains Mono", monospace';
+      ctx.fillText(`${label} ${lvlPrice}`, padLeft + plotW + 4, y + 3);
+    };
+
+    drawFibLine(pHigh, 'P_high', '#38bdf8', false);
+    drawFibLine(fib382, '38.2%', 'rgba(148,163,184,0.65)', true);
+    drawFibLine(fib500, '50.0%', 'rgba(148,163,184,0.65)', true);
+    drawFibLine(fib618, '61.8%', '#10b981', false);
+    drawFibLine(fib786, '78.6%', '#f59e0b', false);
+    drawFibLine(fib886Stop, '88.6%', '#ef4444', false);
+    drawFibLine(pLow, 'P_low', '#94a3b8', true);
+
+    // 5. Horizontal Volume-by-Price Profile Histogram (Right side of plot)
+    const maxProfileWidth = plotW * 0.24;
+    const binH = plotH / numBins;
+    for (let b = 0; b < numBins; b++) {
+      const binPriceCenter = minPrice + ((b + 0.5) / numBins) * priceSpan;
+      const by = yForPrice(binPriceCenter) - binH / 2;
+      const bw = (bins[b] / maxBinVol) * maxProfileWidth;
+      const isValueArea = binPriceCenter >= fib786 && binPriceCenter <= vah;
+      ctx.fillStyle = b === vpocBinIdx
+        ? 'rgba(168, 85, 247, 0.45)'
+        : isValueArea
+          ? 'rgba(56, 189, 248, 0.20)'
+          : 'rgba(148, 163, 184, 0.10)';
+      ctx.fillRect(padLeft + plotW - bw, by + 1, bw, Math.max(1, binH - 2));
+    }
+
+    // VPOC & VAH Horizontal Lines
+    const yVpoc = yForPrice(vpoc);
+    ctx.save();
+    ctx.setLineDash([2, 2]);
+    ctx.strokeStyle = '#a855f7';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(padLeft + plotW * 0.55, yVpoc);
+    ctx.lineTo(padLeft + plotW, yVpoc);
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = '#c084fc';
+    ctx.font = '700 9.5px "JetBrains Mono", monospace';
+    ctx.fillText(`VPOC ${vpoc}`, padLeft + plotW - maxProfileWidth - 62, yVpoc - 3);
+
+    // 6. SMA 200 Structural Trend Line
+    if (sma200 >= minPrice && sma200 <= maxPrice) {
+      const ySma200 = yForPrice(sma200);
+      ctx.save();
+      ctx.setLineDash([8, 4]);
+      ctx.strokeStyle = 'rgba(250, 204, 21, 0.75)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(padLeft, ySma200);
+      ctx.lineTo(padLeft + plotW, ySma200);
+      ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = '#fde047';
+      ctx.font = '600 9.5px "JetBrains Mono", monospace';
+      ctx.fillText(`SMA 200 (${sma200} ${cur})`, padLeft + 8, ySma200 - 4);
+    }
+
+    // 7. Candlesticks + Anchor-VWAP Curve + Volume Dry-Up Histogram
+    const stepX = plotW / numBars;
+    const candleW = Math.max(3, stepX * 0.62);
+    const volTop = padTop + plotH + 14;
+    const volH = padBottom - 24;
+    const maxVol = Math.max(1, ...bars.map((b) => b.vol));
+
+    // Anchor-VWAP - 1sigma Re-Entry Band fill
+    ctx.beginPath();
+    for (let i = anchorIdx; i < numBars; i++) {
+      const cx = padLeft + (i + 0.5) * stepX;
+      const yTop = yForPrice(bars[i].avwap);
+      if (i === anchorIdx) ctx.moveTo(cx, yTop);
+      else ctx.lineTo(cx, yTop);
+    }
+    for (let i = numBars - 1; i >= anchorIdx; i--) {
+      const cx = padLeft + (i + 0.5) * stepX;
+      const yBot = yForPrice(bars[i].avwap - 0.5 * atr);
+      ctx.lineTo(cx, yBot);
+    }
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(6, 182, 212, 0.14)';
+    ctx.fill();
+
+    // Anchor-VWAP Line
+    ctx.strokeStyle = '#06b6d4';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    for (let i = anchorIdx; i < numBars; i++) {
+      const cx = padLeft + (i + 0.5) * stepX;
+      const cy = yForPrice(bars[i].avwap);
+      if (i === anchorIdx) ctx.moveTo(cx, cy);
+      else ctx.lineTo(cx, cy);
+    }
+    ctx.stroke();
+
+    // Anchor Marker at P_low
+    const anchorX = padLeft + (anchorIdx + 0.5) * stepX;
+    const anchorY = yForPrice(pLow);
+    ctx.fillStyle = '#06b6d4';
+    ctx.beginPath();
+    ctx.arc(anchorX, anchorY + 4, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = '700 9.5px "JetBrains Mono", monospace';
+    ctx.fillText('⚓ AVWAP Anchor (P_low)', anchorX - 18, Math.min(padTop + plotH - 4, anchorY + 16));
+
+    // Draw Candlesticks & Volume Bars
+    for (let i = 0; i < numBars; i++) {
+      const b = bars[i];
+      const cx = padLeft + (i + 0.5) * stepX;
+      const isUp = b.close >= b.open;
+      const col = isUp ? '#10b981' : '#ef4444';
+
+      // Wick
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1.15;
+      ctx.beginPath();
+      ctx.moveTo(cx, yForPrice(b.high));
+      ctx.lineTo(cx, yForPrice(b.low));
+      ctx.stroke();
+
+      // Body
+      const yOpen = yForPrice(b.open);
+      const yClose = yForPrice(b.close);
+      const topY = Math.min(yOpen, yClose);
+      const bodyH = Math.max(2, Math.abs(yClose - yOpen));
+      ctx.fillStyle = col;
+      ctx.fillRect(cx - candleW / 2, topY, candleW, bodyH);
+
+      // Volume Bar
+      const vh = (b.vol / maxVol) * volH;
+      const isPullbackDry = i > peakIdx;
+      ctx.fillStyle = isPullbackDry
+        ? 'rgba(56, 189, 248, 0.45)'
+        : isUp
+          ? 'rgba(16, 185, 129, 0.55)'
+          : 'rgba(239, 68, 68, 0.45)';
+      ctx.fillRect(cx - candleW / 2, volTop + volH - vh, candleW, vh);
+
+      // Squeeze dots along separator line
+      if (en.isSqueeze && i >= numBars - 10) {
+        ctx.fillStyle = '#10b981';
+        ctx.beginPath();
+        ctx.arc(cx, padTop + plotH + 6, 2.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Volume Dry-Up Annotation
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '600 9.5px "JetBrains Mono", monospace';
+    ctx.fillText(
+      `VOLUMEN: Spike (Leg 1) → Pullback Volume Dry-Up (${en.pullbackVolRatio ?? 42}% vom Spike) ${en.isSqueeze ? '• 🗜️ BB/KC SQUEEZE ON' : ''}`,
+      padLeft + 8,
+      volTop + 10
+    );
+
+    // Current Live Price Line & Tag
+    const yCur = yForPrice(price);
+    ctx.save();
+    ctx.setLineDash([2, 2]);
+    ctx.strokeStyle = '#f8fafc';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(padLeft, yCur);
+    ctx.lineTo(padLeft + plotW, yCur);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = '#10b981';
+    ctx.fillRect(padLeft + plotW + 2, yCur - 9, padRight - 4, 18);
+    ctx.fillStyle = '#052e16';
+    ctx.font = '800 10px "JetBrains Mono", monospace';
+    ctx.fillText(`AKT ${price}`, padLeft + plotW + 5, yCur + 3);
+
+    // 8. Interactive Hover Crosshair & Live Fibonacci + CRV Calculator
+    if (hoverX != null && hoverY != null && hoverX >= padLeft && hoverX <= padLeft + plotW && hoverY >= padTop && hoverY <= padTop + plotH) {
+      const hoverPrice = Number(priceForY(hoverY).toFixed(dec));
+      const fibRetracePct = (((pHigh - hoverPrice) / swingRange) * 100).toFixed(1);
+      const riskToStop = hoverPrice - fib886Stop;
+      const rewardToPeak = pHigh - hoverPrice;
+      const liveCrv = riskToStop > 0.005 ? (rewardToPeak / riskToStop).toFixed(2) : '—';
+
+      ctx.save();
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = 'rgba(248, 250, 252, 0.55)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padLeft, hoverY);
+      ctx.lineTo(padLeft + plotW, hoverY);
+      ctx.moveTo(hoverX, padTop);
+      ctx.lineTo(hoverX, padTop + plotH);
+      ctx.stroke();
+      ctx.restore();
+
+      // Hover Tooltip Banner at top-left
+      const tipText = `FADENKREUZ: ${hoverPrice} ${cur}  |  Fib-Retracement: ${fibRetracePct}%  |  Stop (0.886): ${fib886Stop} ${cur}  |  Live CRV bis P_high: ${liveCrv} : 1`;
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+      ctx.fillRect(padLeft + 6, padTop + 4, Math.min(plotW - 12, 540), 22);
+      ctx.strokeStyle = '#10b981';
+      ctx.strokeRect(padLeft + 6, padTop + 4, Math.min(plotW - 12, 540), 22);
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = '700 10.5px "JetBrains Mono", monospace';
+      ctx.fillText(tipText, padLeft + 12, padTop + 18);
+    }
+  };
+
+  drawScene();
+
+  canvas.onmousemove = (e) => {
+    const r = canvas.getBoundingClientRect();
+    drawScene(e.clientX - r.left, e.clientY - r.top);
+  };
+  canvas.onmouseleave = () => {
+    drawScene(null, null);
+  };
+}
+
+// ============================================================================
+// TRADINGVIEW PINE SCRIPT V5 GENERATOR (FOR EXTERNAL TRADINGVIEW CHARTS)
+// ============================================================================
+function generateTradingViewPineScript(st) {
+  return `//@version=5
+indicator("ALPHA PENNY – Entry-Zonen, Golden Pocket, AVWAP & 100-Pt Confluence (${st.ticker})", shorttitle="ALPHA-ENTRY", overlay=true, max_boxes_count=10, max_lines_count=20)
+
+// === 1. PARAMETER & IMPULS-EINSTELLUNGEN ===
+lookback   = input.int(25, "Swing-Impuls Lookback (Kerzen)", minval=5, maxval=120)
+bbLength   = input.int(20, "Bollinger / Keltner Periode", minval=5)
+bbMult     = input.float(2.0, "Bollinger Multiplikator", step=0.1)
+kcMult     = input.float(1.5, "Keltner ATR-Multiplikator", step=0.1)
+estSpread  = input.float(${st.entry?.estSpreadPct ?? 0.75}, "Geschätzter Bid-Ask Spread (%)", step=0.1)
+
+// === 2. GOLDEN POCKET FORMEL (0.618 - 0.786 RETEST + 0.886 STOP) ===
+p_high     = ta.highest(high, lookback)
+p_low      = ta.lowest(low, lookback)
+swingRange = math.max(syminfo.mintick, p_high - p_low)
+
+fib_618    = p_high - (0.618 * swingRange)
+fib_786    = p_high - (0.786 * swingRange)
+stop_886   = p_high - (0.886 * swingRange)
+inGolden   = close >= fib_786 * 0.98 and close <= fib_618 * 1.02
+
+// === 3. ROLLING ANCHOR-VWAP & VOLUME PROFILE APPROXIMATION ===
+barsSinceLow = math.max(1, ta.barssince(low == p_low))
+typPrice     = hlc3
+avwap        = ta.vwap(typPrice)
+sma20        = ta.sma(close, bbLength)
+sma200       = ta.sma(close, 200)
+atr20        = ta.atr(bbLength)
+avwapLowBand = avwap - (0.5 * atr20)
+inAvwapZone  = close >= avwapLowBand and close <= avwap * 1.03
+
+// === 4. BOLLINGER / KELTNER VOLATILITY SQUEEZE ===
+dev      = bbMult * ta.stdev(close, bbLength)
+bbUpper  = sma20 + dev
+bbLower  = sma20 - dev
+kcUpper  = sma20 + kcMult * atr20
+kcLower  = sma20 - kcMult * atr20
+squeezeOn = (bbUpper < kcUpper) and (bbLower > kcLower)
+sqTrigger = squeezeOn and close > sma20 and close[1] <= sma20[1]
+
+// === 5. 100-PUNKTE CONFLUENCE SCORING ===
+spikeVol    = ta.highest(volume, lookback)
+volDryUp    = volume < (0.50 * spikeVol)
+ptsTrend    = (close > sma200 or close > p_low * 1.05) ? 25 : 10
+ptsZone     = (inGolden or inAvwapZone or squeezeOn) ? 30 : 10
+ptsVol      = volDryUp ? 25 : 10
+ptsSpread   = estSpread < 1.5 ? 20 : 5
+confScore   = ptsTrend + ptsZone + ptsVol + ptsSpread
+entryAlert  = confScore >= 80
+
+// === 6. PLOTS IM TRADINGVIEW CHART ===
+pHighPlot = plot(p_high, "Swing High (P_high)", color=color.new(#38bdf8, 35), linewidth=1)
+p618Plot  = plot(fib_618, "Golden Pocket Top (0.618)", color=color.new(#10b981, 0), linewidth=2)
+p786Plot  = plot(fib_786, "Golden Pocket Bottom (0.786)", color=color.new(#f59e0b, 0), linewidth=2)
+p886Plot  = plot(stop_886, "Invalidation Stop (0.886)", color=color.new(#ef4444, 0), linewidth=2, style=plot.style_linebr)
+plot(avwap, "VWAP / Anchor-VWAP", color=color.new(#06b6d4, 0), linewidth=2)
+plot(sma200, "SMA 200", color=color.new(#fde047, 20), linewidth=2)
+
+fill(p618Plot, p786Plot, color=color.new(#10b981, 80), title="Golden Pocket Zone (0.618-0.786)")
+bgcolor(squeezeOn ? color.new(#06b6d4, 90) : na, title="BB/KC Squeeze Aktiv")
+plotshape(entryAlert and (inGolden or sqTrigger), title="Entry Alert >= 80", style=shape.labelup, location=location.belowbar, color=#10b981, text="ENTRY >=80", textcolor=color.white, size=size.small)
+
+// === 7. LIVE CONFLUENCE SCORECARD TABELLE OBEN RECHTS ===
+var table hud = table.new(position.top_right, 2, 6, bgcolor=color.new(#0f172a, 12), border_color=#10b981, border_width=1)
+if barstate.islast
+    table.cell(hud, 0, 0, "🎯 CONFLUENCE SCORE", text_color=color.white, text_size=size.small)
+    table.cell(hud, 1, 0, str.tostring(confScore) + " / 100", text_color=confScore >= 80 ? #10b981 : #f59e0b, text_size=size.small)
+    table.cell(hud, 0, 1, "Golden Pocket (0.618-0.786)", text_color=#94a3b8, text_size=size.tiny)
+    table.cell(hud, 1, 1, str.tostring(fib_786, "#.###") + " - " + str.tostring(fib_618, "#.###"), text_color=#10b981, text_size=size.tiny)
+    table.cell(hud, 0, 2, "Invalidation Stop (0.886)", text_color=#94a3b8, text_size=size.tiny)
+    table.cell(hud, 1, 2, str.tostring(stop_886, "#.###"), text_color=#ef4444, text_size=size.tiny)
+    table.cell(hud, 0, 3, "BB / Keltner Squeeze", text_color=#94a3b8, text_size=size.tiny)
+    table.cell(hud, 1, 3, squeezeOn ? "SQUEEZE ON" : "Expansion", text_color=squeezeOn ? #06b6d4 : #94a3b8, text_size=size.tiny)
+    table.cell(hud, 0, 4, "Pullback Volume Dry-Up", text_color=#94a3b8, text_size=size.tiny)
+    table.cell(hud, 1, 4, volDryUp ? "JA (<50% Spike)" : "Nein", text_color=volDryUp ? #10b981 : #f59e0b, text_size=size.tiny)
+    table.cell(hud, 0, 5, "Signal-Status (>=80)", text_color=#94a3b8, text_size=size.tiny)
+    table.cell(hud, 1, 5, entryAlert ? "🎯 ENTRY ALERT!" : "Warte auf Zone", text_color=entryAlert ? #10b981 : color.white, text_size=size.tiny)
+`;
 }
 
 // ============================================================================
